@@ -1,0 +1,49 @@
+body {
+
+    background: #020617;
+    color: white;
+    font-family: Arial;
+    padding: 30px;
+
+}
+
+.card {
+
+    background: #0f172a;
+    padding: 20px;
+    border-radius: 20px;
+    margin-bottom: 20px;
+
+}
+
+.gold {
+
+    color: gold;
+    font-size: 40px;
+    font-weight: bold;
+
+}
+
+.buy {
+
+    color: #00ff99;
+    font-size: 50px;
+    font-weight: bold;
+
+}
+
+.sell {
+
+    color: #ff4d4d;
+    font-size: 50px;
+    font-weight: bold;
+
+}
+
+.wait {
+
+    color: orange;
+    font-size: 50px;
+    font-weight: bold;
+
+}

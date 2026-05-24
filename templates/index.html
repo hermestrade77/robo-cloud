@@ -1,0 +1,58 @@
+<html>
+
+<head>
+
+<title>ROBO IA XAUUSD</title>
+
+<meta http-equiv="refresh" content="15">
+
+<link rel="stylesheet"
+href="/static/style.css">
+
+</head>
+
+<body>
+
+<h1>🔥 ROBO IA XAUUSD</h1>
+
+<div class="card">
+
+<h2>PREÇO OURO</h2>
+
+<p class="gold">
+🥇 {{ market.price }}
+</p>
+
+</div>
+
+<div class="card">
+
+<h2>SINAL IA</h2>
+
+<p class="{{ signal.signal.lower() }}">
+
+{{ signal.signal }}
+
+</p>
+
+<p>🎯 SCORE: {{ signal.score }}</p>
+
+<p>📊 RSI: {{ market.rsi }}</p>
+
+<p>📈 EMA20: {{ market.ema20 }}</p>
+
+<p>📉 EMA50: {{ market.ema50 }}</p>
+
+<p>⚡ MACD: {{ market.macd }}</p>
+
+</div>
+
+<div class="card">
+
+<p>⏰ {{ now }}</p>
+
+</div>
+
+</body>
+
+</html>

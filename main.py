@@ -1,294 +1,76 @@
-from flask import Flask
-import random
-import os
+from flask import Flask, jsonify
+from ai.model import treinar_modelo, prever
 from datetime import datetime
 
 app = Flask(__name__)
 
-# =========================================
-# DADOS FAKE IA
-# =========================================
-
-def gerar_sinal():
-
-    sinais = [
-
-        "BUY",
-
-        "SELL",
-
-        "WAIT"
-
-    ]
-
-    return random.choice(sinais)
-
-def gerar_noticia():
-
-    noticias = [
-
-        "FED mantém juros altos",
-
-        "Ouro sobe com medo de recessão",
-
-        "Dólar ganha força global",
-
-        "Mercado espera decisão do FOMC",
-
-        "Inflação preocupa investidores"
-
-    ]
-
-    return random.choice(noticias)
-
-# =========================================
-# DASHBOARD HTML
-# =========================================
+print("🧠 Treinando IA XGBoost...")
+model, features = treinar_modelo()
+print("✅ IA pronta!")
 
 @app.route("/")
-def dashboard():
+def home():
 
-    sinal = gerar_sinal()
+    result = prever(model, features)
 
-    noticia = gerar_noticia()
-
-    score = round(
-
-        random.uniform(0.70, 0.99),
-
-        2
-
-    )
-
-    html = f"""
-
+    return f"""
     <html>
-
     <head>
-
-    <title>ROBO IA XAUUSD</title>
-
-    <style>
-
-    body {{
-
-        background: #0f172a;
-
-        color: white;
-
-        font-family: Arial;
-
-        padding: 30px;
-
-    }}
-
-    .card {{
-
-        background: #1e293b;
-
-        border-radius: 20px;
-
-        padding: 20px;
-
-        margin-bottom: 20px;
-
-        box-shadow: 0 0 20px rgba(0,0,0,0.5);
-
-    }}
-
-    h1 {{
-
-        color: gold;
-
-    }}
-
-    .buy {{
-
-        color: #00ff99;
-
-        font-size: 40px;
-
-        font-weight: bold;
-
-    }}
-
-    .sell {{
-
-        color: #ff4d4d;
-
-        font-size: 40px;
-
-        font-weight: bold;
-
-    }}
-
-    .wait {{
-
-        color: orange;
-
-        font-size: 40px;
-
-        font-weight: bold;
-
-    }}
-
-    </style>
-
+        <title>XGBOOST TRADING AI</title>
+        <meta http-equiv="refresh" content="10">
+        <style>
+            body {{
+                background:#0b0f1a;
+                color:white;
+                font-family:Arial;
+                padding:30px;
+            }}
+            .card {{
+                background:#111827;
+                padding:20px;
+                margin:10px;
+                border-radius:15px;
+            }}
+            .buy {{ color:green; font-size:40px; }}
+            .sell {{ color:red; font-size:40px; }}
+            .wait {{ color:orange; font-size:40px; }}
+        </style>
     </head>
 
     <body>
 
-    <h1>🔥 ROBO IA XAUUSD</h1>
+        <h1>🔥 XGBOOST AI TRADER</h1>
 
-    <div class="card">
+        <div class="card">
+            <h2>PRICE</h2>
+            <p>{result['price']}</p>
+        </div>
 
-        <h2>STATUS</h2>
+        <div class="card">
+            <h2>SIGNAL</h2>
+            <p class="{result['signal'].lower()}">
+                {result['signal']}
+            </p>
+        </div>
 
-        <p>🟢 ONLINE</p>
+        <div class="card">
+            <h2>PROBABILITY UP</h2>
+            <p>{result['probability_up']}</p>
+        </div>
 
-        <p>🤖 FINBERT ACTIVE</p>
-
-        <p>📡 CLOUD ACTIVE</p>
-
-        <p>⏰ {datetime.now()}</p>
-
-    </div>
-
-    <div class="card">
-
-        <h2>SINAL IA</h2>
-
-    """
-
-    if sinal == "BUY":
-
-        html += f"<p class='buy'>{sinal}</p>"
-
-    elif sinal == "SELL":
-
-        html += f"<p class='sell'>{sinal}</p>"
-
-    else:
-
-        html += f"<p class='wait'>{sinal}</p>"
-
-    html += f"""
-
-        <p>🎯 SCORE IA: {score}</p>
-
-        <p>📊 ESTRATÉGIA: SMART MONEY + IA</p>
-
-    </div>
-
-    <div class="card">
-
-        <h2>NOTÍCIA FORTE</h2>
-
-        <p>📰 {noticia}</p>
-
-    </div>
-
-    <div class="card">
-
-        <h2>MERCADO</h2>
-
-        <p>🥇 XAUUSD</p>
-
-        <p>💵 DXY MONITORADO</p>
-
-        <p>🥈 PRATA MONITORADA</p>
-
-        <p>🏦 FLUXO INSTITUCIONAL</p>
-
-    </div>
+        <div class="card">
+            <p>⏰ {datetime.now()}</p>
+        </div>
 
     </body>
-
     </html>
-
     """
 
-    return html
+@app.route("/api")
+def api():
 
-# =========================================
-# STATUS API
-# =========================================
-
-@app.route("/status")
-def status():
-
-    return {
-
-        "status": "ONLINE",
-
-        "ia": "FINBERT ACTIVE",
-
-        "market": "XAUUSD",
-
-        "time": str(datetime.now())
-
-    }
-
-# =========================================
-# SIGNAL API
-# =========================================
-
-@app.route("/signal")
-def signal():
-
-    return {
-
-        "signal": gerar_sinal(),
-
-        "confidence": round(
-
-            random.uniform(0.70, 0.99),
-
-            2
-
-        ),
-
-        "strategy": "SMART MONEY + IA"
-
-    }
-
-# =========================================
-# NEWS API
-# =========================================
-
-@app.route("/news")
-def news():
-
-    return {
-
-        "headline": gerar_noticia(),
-
-        "impact": "HIGH"
-
-    }
-
-# =========================================
-# START
-# =========================================
+    return jsonify(prever(model, features))
 
 if __name__ == "__main__":
 
-    port = int(
-
-        os.environ.get(
-
-            "PORT",
-
-            8080
-
-        )
-
-    )
-
-    app.run(
-
-        host="0.0.0.0",
-
-        port=port
-
-    )
+    app.run(host="0.0.0.0", port=8080, debug=True)
