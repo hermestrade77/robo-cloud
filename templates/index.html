@@ -1,57 +1,161 @@
+<!DOCTYPE html>
 <html>
 
 <head>
 
-<title>ROBO IA XAUUSD</title>
+    <title>ROBO IA XAU/USD</title>
 
-<meta http-equiv="refresh" content="15">
+    <meta charset="UTF-8">
 
-<link rel="stylesheet"
-href="/static/style.css">
+    <meta http-equiv="refresh" content="10">
+
+    <style>
+
+        body {
+
+            background: #0f1117;
+            color: white;
+            font-family: Arial;
+            padding: 20px;
+        }
+
+        .card {
+
+            background: #1c1f26;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+
+            color: gold;
+        }
+
+        .green {
+
+            color: #00ff99;
+        }
+
+        .red {
+
+            color: #ff4d4d;
+        }
+
+        .yellow {
+
+            color: gold;
+        }
+
+    </style>
 
 </head>
 
 <body>
 
-<h1>🔥 ROBO IA XAUUSD</h1>
+    <h1>🧠 ROBO IA XAU/USD</h1>
 
-<div class="card">
+    <div class="card">
 
-<h2>PREÇO OURO</h2>
+        <h2>📊 IA</h2>
 
-<p class="gold">
-🥇 {{ market.price }}
-</p>
+        <p>AI SIGNAL:
+            <span class="green">
+                {{ signal }}
+            </span>
+        </p>
 
-</div>
+        <p>ML CONFIDENCE:
+            <span class="yellow">
+                {{ confidence }}
+            </span>
+        </p>
 
-<div class="card">
+        <p>MARKET:
+            <span class="yellow">
+                {{ market }}
+            </span>
+        </p>
 
-<h2>SINAL IA</h2>
+    </div>
 
-<p class="{{ signal.signal.lower() }}">
+    <div class="card">
 
-{{ signal.signal }}
+        <h2>🏦 SMART MONEY</h2>
 
-</p>
+        <p>BOS:
+            <span class="green">
+                {{ bos }}
+            </span>
+        </p>
 
-<p>🎯 SCORE: {{ signal.score }}</p>
+        <p>CHOCH:
+            <span class="green">
+                {{ choch }}
+            </span>
+        </p>
 
-<p>📊 RSI: {{ market.rsi }}</p>
+        <p>SWEEP:
+            <span class="yellow">
+                {{ sweep }}
+            </span>
+        </p>
 
-<p>📈 EMA20: {{ market.ema20 }}</p>
+        <p>BIAS:
+            <span class="green">
+                {{ bias }}
+            </span>
+        </p>
 
-<p>📉 EMA50: {{ market.ema50 }}</p>
+    </div>
 
-<p>⚡ MACD: {{ market.macd }}</p>
+    <div class="card">
 
-</div>
+        <h2>🌍 MERCADO</h2>
 
-<div class="card">
+        <p>SESSION:
+            <span class="yellow">
+                {{ session }}
+            </span>
+        </p>
 
-<p>⏰ {{ now }}</p>
+        <p>NEWS:
+            <span class="green">
+                {{ news }}
+            </span>
+        </p>
 
-</div>
+        <p>VOLATILITY:
+            <span class="yellow">
+                {{ volatility }}
+            </span>
+        </p>
+
+    </div>
+
+    <div class="card">
+
+        <h2>💰 PERFORMANCE</h2>
+
+        <p>WINRATE:
+            <span class="green">
+                {{ winrate }}%
+            </span>
+        </p>
+
+        <p>TRADES:
+            <span class="yellow">
+                {{ trades }}
+            </span>
+        </p>
+
+        <p>PNL:
+            <span class="green">
+                {{ pnl }}
+            </span>
+        </p>
+
+    </div>
 
 </body>
 

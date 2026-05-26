@@ -1,76 +1,78 @@
-from flask import Flask, jsonify
-from ai.model import treinar_modelo, prever
-from datetime import datetime
+from flask import (
+    Flask,
+    jsonify,
+    render_template
+)
+
+from core.shared_data import (
+    shared_data
+)
 
 app = Flask(__name__)
 
-print("🧠 Treinando IA XGBoost...")
-model, features = treinar_modelo()
-print("✅ IA pronta!")
+# ====================================
+# DASHBOARD
+# ====================================
 
 @app.route("/")
+
 def home():
 
-    result = prever(model, features)
+    return render_template(
 
-    return f"""
-    <html>
-    <head>
-        <title>XGBOOST TRADING AI</title>
-        <meta http-equiv="refresh" content="10">
-        <style>
-            body {{
-                background:#0b0f1a;
-                color:white;
-                font-family:Arial;
-                padding:30px;
-            }}
-            .card {{
-                background:#111827;
-                padding:20px;
-                margin:10px;
-                border-radius:15px;
-            }}
-            .buy {{ color:green; font-size:40px; }}
-            .sell {{ color:red; font-size:40px; }}
-            .wait {{ color:orange; font-size:40px; }}
-        </style>
-    </head>
+        "index.html",
 
-    <body>
+        signal=shared_data["signal"],
 
-        <h1>🔥 XGBOOST AI TRADER</h1>
+        confidence=round(
+            shared_data["confidence"] * 100,
+            2
+        ),
 
-        <div class="card">
-            <h2>PRICE</h2>
-            <p>{result['price']}</p>
-        </div>
+        market=shared_data["market"],
 
-        <div class="card">
-            <h2>SIGNAL</h2>
-            <p class="{result['signal'].lower()}">
-                {result['signal']}
-            </p>
-        </div>
+        bos=shared_data["bos"],
 
-        <div class="card">
-            <h2>PROBABILITY UP</h2>
-            <p>{result['probability_up']}</p>
-        </div>
+        choch=shared_data["choch"],
 
-        <div class="card">
-            <p>⏰ {datetime.now()}</p>
-        </div>
+        sweep=shared_data["sweep"],
 
-    </body>
-    </html>
-    """
+        bias=shared_data["market"],
+
+        session=shared_data["session"],
+
+        news="ACTIVE",
+
+        volatility="HIGH",
+
+        winrate=shared_data["winrate"],
+
+        pnl=shared_data["pnl"],
+
+        trades=shared_data["trades"]
+    )
+
+# ====================================
+# API
+# ====================================
 
 @app.route("/api")
+
 def api():
 
-    return jsonify(prever(model, features))
+    return jsonify(shared_data)
+
+# ====================================
+# START
+# ====================================
 
 if __name__ == "__main__":
 
-    app.run(host="0.0.0.0", port=8080, debug=True)
+    app.run(
+
+        host="0.0.0.0",
+
+        port=8080,
+
+        debug=True
+    )

@@ -1,5 +1,6 @@
 flask
-yfinance
 pandas
-ta
+scikit-learn
+joblib
+numpy
 gunicorn
