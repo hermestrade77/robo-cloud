@@ -1,14 +1,38 @@
 from flask import (
     Flask,
-    jsonify,
-    render_template
-)
-
-from core.shared_data import (
-    shared_data
+    render_template,
+    request,
+    jsonify
 )
 
 app = Flask(__name__)
+
+# ====================================
+# DADOS GLOBAIS
+# ====================================
+
+shared_data = {
+
+    "signal": "WAIT",
+
+    "confidence": 0,
+
+    "market": "NONE",
+
+    "bos": "NONE",
+
+    "choch": "NONE",
+
+    "sweep": False,
+
+    "session": "NONE",
+
+    "winrate": 0,
+
+    "trades": 0,
+
+    "pnl": 0
+}
 
 # ====================================
 # DASHBOARD
@@ -53,14 +77,21 @@ def home():
     )
 
 # ====================================
-# API
+# API UPDATE
 # ====================================
 
-@app.route("/api")
+@app.route("/update", methods=["POST"])
 
-def api():
+def update():
 
-    return jsonify(shared_data)
+    global shared_data
+
+    shared_data = request.json
+
+    return jsonify({
+
+        "status": "ok"
+    })
 
 # ====================================
 # START
@@ -72,7 +103,5 @@ if __name__ == "__main__":
 
         host="0.0.0.0",
 
-        port=8080,
-
-        debug=True
+        port=8080
     )
