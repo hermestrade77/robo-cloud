@@ -2,4 +2,5 @@ flask
 yfinance
 pandas
 ta
+xgboost
 gunicorn
