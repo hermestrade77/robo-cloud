@@ -1,11 +1,19 @@
 import requests
 
-RAILWAY_API = "http://127.0.0.1:8080/update"
+# ======================================
+# URL DO RAILWAY
+# ======================================
+
+RAILWAY_API = "https://robo-cloud-production.up.railway.app"
+
+# ======================================
+# SEND
+# ======================================
 
 def send_data(data):
 
     print("\n====================")
-    print("ENVIANDO API...")
+    print("ENVIANDO DADOS...")
     print(data)
 
     try:
@@ -16,7 +24,7 @@ def send_data(data):
 
             json=data,
 
-            timeout=10
+            timeout=15
         )
 
         print("STATUS:", response.status_code)

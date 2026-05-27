@@ -1,162 +1,171 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="pt-br">
 <head>
-
-    <title>ROBO IA XAU/USD</title>
-
     <meta charset="UTF-8">
-
-    <meta http-equiv="refresh" content="10">
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Trading Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
     <style>
-
-        body {
-
-            background: #0f1117;
-            color: white;
-            font-family: Arial;
-            padding: 20px;
+        * { font-family: 'Inter', sans-serif; }
+        body { background: #0a0a0f; }
+        .glass {
+            background: rgba(255,255,255,0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
         }
-
-        .card {
-
-            background: #1c1f26;
-            padding: 20px;
-            border-radius: 10px;
-            margin-bottom: 20px;
+        .signal-buy { color: #00ff88; text-shadow: 0 0 20px rgba(0,255,136,0.5); }
+        .signal-sell { color: #ff4466; text-shadow: 0 0 20px rgba(255,68,102,0.5); }
+        .signal-wait { color: #ffaa00; text-shadow: 0 0 20px rgba(255,170,0,0.5); }
+        .pulse {
+            animation: pulse 2s infinite;
         }
-
-        h1 {
-
-            color: gold;
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
         }
-
-        .green {
-
-            color: #00ff99;
+        .glow-border {
+            box-shadow: 0 0 15px rgba(0,255,136,0.1);
         }
-
-        .red {
-
-            color: #ff4d4d;
-        }
-
-        .yellow {
-
-            color: gold;
-        }
-
     </style>
-
 </head>
+<body class="min-h-screen p-6">
+    <div class="max-w-7xl mx-auto">
+        
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-3xl font-bold text-white">🤖 AI Trading Dashboard</h1>
+                <p class="text-gray-400 text-sm mt-1">MetaTrader 5 • Análise em Tempo Real</p>
+            </div>
+            <div class="text-right">
+                <div class="text-gray-400 text-sm">Última atualização</div>
+                <div class="text-white font-semibold" id="lastUpdate">{{ last_update }}</div>
+            </div>
+        </div>
 
-<body>
+        <!-- Cards Principais -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            
+            <!-- Sinal -->
+            <div class="glass rounded-2xl p-6 glow-border">
+                <div class="text-gray-400 text-sm uppercase tracking-wider mb-2">Sinal Atual</div>
+                <div class="text-4xl font-bold signal-{{ signal.lower() }}" id="signal">
+                    {{ signal }}
+                </div>
+                <div class="mt-4 flex items-center">
+                    <div class="text-gray-400 text-sm">Confiança:</div>
+                    <div class="ml-2 w-full bg-gray-700 rounded-full h-2">
+                        <div class="bg-gradient-to-r from-green-400 to-green-600 h-2 rounded-full" 
+                             style="width: {{ confidence }}%"></div>
+                    </div>
+                    <div class="ml-2 text-white font-semibold">{{ confidence }}%</div>
+                </div>
+            </div>
 
-    <h1>🧠 ROBO IA XAU/USD</h1>
+            <!-- Mercado -->
+            <div class="glass rounded-2xl p-6">
+                <div class="text-gray-400 text-sm uppercase tracking-wider mb-2">Mercado</div>
+                <div class="text-3xl font-bold text-white">{{ market }}</div>
+                <div class="mt-2 text-2xl font-semibold text-white">${{ price }}</div>
+                <div class="text-gray-400 text-sm mt-1">Spread: {{ spread }}</div>
+            </div>
 
-    <div class="card">
+            <!-- Performance -->
+            <div class="glass rounded-2xl p-6">
+                <div class="text-gray-400 text-sm uppercase tracking-wider mb-2">Performance</div>
+                <div class="text-3xl font-bold text-white">{{ winrate }}%</div>
+                <div class="text-gray-400 text-sm mt-2">{{ trades }} trades</div>
+                <div class="text-lg mt-1 font-semibold" style="color: {% if pnl >= 0 %}#00ff88{% else %}#ff4466{% endif %}">
+                    ${{ pnl }}
+                </div>
+            </div>
 
-        <h2>📊 IA</h2>
+            <!-- Sessão -->
+            <div class="glass rounded-2xl p-6">
+                <div class="text-gray-400 text-sm uppercase tracking-wider mb-2">Sessão</div>
+                <div class="text-3xl font-bold text-white">{{ session }}</div>
+                <div class="mt-2 flex items-center">
+                    <div class="w-2 h-2 rounded-full bg-green-400 pulse mr-2"></div>
+                    <span class="text-green-400 text-sm">Ativo</span>
+                </div>
+            </div>
+        </div>
 
-        <p>AI SIGNAL:
-            <span class="green">
-                {{ signal }}
-            </span>
-        </p>
+        <!-- Análise Estrutural -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            
+            <div class="glass rounded-2xl p-6">
+                <div class="text-gray-400 text-sm uppercase tracking-wider mb-4">BOS (Break of Structure)</div>
+                <div class="text-2xl font-bold" style="color: {% if bos == 'BULLISH' %}#00ff88{% elif bos == 'BEARISH' %}#ff4466{% else %}#ffaa00{% endif %}">
+                    {{ bos }}
+                </div>
+            </div>
 
-        <p>ML CONFIDENCE:
-            <span class="yellow">
-                {{ confidence }}
-            </span>
-        </p>
+            <div class="glass rounded-2xl p-6">
+                <div class="text-gray-400 text-sm uppercase tracking-wider mb-4">CHOCH (Change of Character)</div>
+                <div class="text-2xl font-bold" style="color: {% if choch == 'DETECTED' %}#00ff88{% else %}#ffaa00{% endif %}">
+                    {{ choch }}
+                </div>
+            </div>
 
-        <p>MARKET:
-            <span class="yellow">
-                {{ market }}
-            </span>
-        </p>
+            <div class="glass rounded-2xl p-6">
+                <div class="text-gray-400 text-sm uppercase tracking-wider mb-4">Sweep (Liquidity Grab)</div>
+                <div class="text-2xl font-bold" style="color: {% if sweep %}#00ff88{% else %}#ffaa00{% endif %}">
+                    {% if sweep %}✅ DETECTED{% else %}❌ NONE{% endif %}
+                </div>
+            </div>
+        </div>
 
+        <!-- Últimos Sinais -->
+        <div class="glass rounded-2xl p-6">
+            <div class="text-gray-400 text-sm uppercase tracking-wider mb-4">📊 Últimas Análises</div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left">
+                    <thead>
+                        <tr class="text-gray-500 text-sm">
+                            <th class="pb-3">Horário</th>
+                            <th class="pb-3">Par</th>
+                            <th class="pb-3">Sinal</th>
+                            <th class="pb-3">Confiança</th>
+                            <th class="pb-3">BOS</th>
+                            <th class="pb-3">CHOCH</th>
+                        </tr>
+                    </thead>
+                    <tbody id="signalsTable">
+                        <tr class="border-t border-gray-700/50">
+                            <td class="py-3 text-white">{{ last_update }}</td>
+                            <td class="py-3 text-white">{{ market }}</td>
+                            <td class="py-3 signal-{{ signal.lower() }} font-semibold">{{ signal }}</td>
+                            <td class="py-3 text-white">{{ confidence }}%</td>
+                            <td class="py-3 text-white">{{ bos }}</td>
+                            <td class="py-3 text-white">{{ choch }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
-    <div class="card">
-
-        <h2>🏦 SMART MONEY</h2>
-
-        <p>BOS:
-            <span class="green">
-                {{ bos }}
-            </span>
-        </p>
-
-        <p>CHOCH:
-            <span class="green">
-                {{ choch }}
-            </span>
-        </p>
-
-        <p>SWEEP:
-            <span class="yellow">
-                {{ sweep }}
-            </span>
-        </p>
-
-        <p>BIAS:
-            <span class="green">
-                {{ bias }}
-            </span>
-        </p>
-
-    </div>
-
-    <div class="card">
-
-        <h2>🌍 MERCADO</h2>
-
-        <p>SESSION:
-            <span class="yellow">
-                {{ session }}
-            </span>
-        </p>
-
-        <p>NEWS:
-            <span class="green">
-                {{ news }}
-            </span>
-        </p>
-
-        <p>VOLATILITY:
-            <span class="yellow">
-                {{ volatility }}
-            </span>
-        </p>
-
-    </div>
-
-    <div class="card">
-
-        <h2>💰 PERFORMANCE</h2>
-
-        <p>WINRATE:
-            <span class="green">
-                {{ winrate }}%
-            </span>
-        </p>
-
-        <p>TRADES:
-            <span class="yellow">
-                {{ trades }}
-            </span>
-        </p>
-
-        <p>PNL:
-            <span class="green">
-                {{ pnl }}
-            </span>
-        </p>
-
-    </div>
-
+    <script>
+        // Atualização automática a cada 5 segundos
+        setInterval(async () => {
+            try {
+                const response = await fetch('/api/analysis');
+                const data = await response.json();
+                
+                // Atualizar elementos
+                document.getElementById('signal').textContent = data.signal;
+                document.getElementById('lastUpdate').textContent = data.last_update;
+                
+                // Atualizar classes do sinal
+                const signalEl = document.getElementById('signal');
+                signalEl.className = `text-4xl font-bold signal-${data.signal.toLowerCase()}`;
+                
+            } catch (error) {
+                console.error('Erro ao atualizar:', error);
+            }
+        }, 5000);
+    </script>
 </body>
-
 </html>

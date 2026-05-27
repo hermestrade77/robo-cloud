@@ -1,359 +1,303 @@
 import MetaTrader5 as mt5
 import pandas as pd
+import numpy as np
 import time
-
+import requests
 from datetime import datetime
 
-from ai.model import (
-    treinar_modelo,
-    prever
-)
+# =========================================
+# IA
+# =========================================
+from ai.model import treinar_modelo, prever
+from ai.features import criar_features   # NOVO: para features atualizadas
 
-from core.shared_data import shared_data
+# =========================================
+# NEWS AI
+# =========================================
+from news.news_filter import analyze_news
 
-# ======================================
+# =========================================
 # SETTINGS
-# ======================================
-
+# =========================================
 SYMBOL = "XAUUSD.pro"
-
+TIMEFRAME = mt5.TIMEFRAME_M15
 LOT = 0.01
-
 MAGIC = 20260526
 
-TIMEFRAME = mt5.TIMEFRAME_M15
+# =========================================
+# RAILWAY API
+# =========================================
+RAILWAY_API = "https://robo-cloud-production.up.railway.app/update"
 
-# ======================================
-# MT5
-# ======================================
-
+# =========================================
+# MT5 INIT
+# =========================================
 if not mt5.initialize():
-
-    print("ERRO MT5")
-
+    print("❌ ERRO AO CONECTAR MT5")
     quit()
 
-print("================================")
-print("MT5 CONECTADO")
+print("\n================================")
+print("✅ MT5 CONECTADO")
 print("================================")
 
-# ======================================
-# IA
-# ======================================
-
+# =========================================
+# IA INIT
+# =========================================
 print("🧠 TREINANDO IA...")
-
-model, features = treinar_modelo()
-
+model, _ = treinar_modelo()   # features do treino não serão usadas
 print("✅ IA PRONTA")
 
-# ======================================
-# DADOS
-# ======================================
-
-def get_data():
-
-    rates = mt5.copy_rates_from_pos(
-
-        SYMBOL,
-
-        TIMEFRAME,
-
-        0,
-
-        500
-    )
-
+# =========================================
+# GET DATA
+# =========================================
+def get_data(symbol=SYMBOL, timeframe=TIMEFRAME, bars=500):
+    rates = mt5.copy_rates_from_pos(symbol, timeframe, 0, bars)
     if rates is None:
-
         return pd.DataFrame()
-
     df = pd.DataFrame(rates)
-
     if len(df) == 0:
-
         return pd.DataFrame()
-
-    df["time"] = pd.to_datetime(
-        df["time"],
-        unit="s"
-    )
-
+    df["time"] = pd.to_datetime(df["time"], unit="s")
     return df
 
-# ======================================
+# =========================================
 # SESSION
-# ======================================
-
+# =========================================
 def get_session():
-
     hour = datetime.now().hour
-
     if 0 <= hour < 7:
         return "ASIA"
-
     elif 7 <= hour < 13:
         return "LONDON"
-
     elif 13 <= hour < 17:
         return "NEW YORK"
-
     return "AFTER"
 
-# ======================================
+# =========================================
 # TREND
-# ======================================
-
+# =========================================
 def get_trend(df):
-
-    ema20 = df["close"].ewm(
-        span=20
-    ).mean()
-
-    ema50 = df["close"].ewm(
-        span=50
-    ).mean()
-
+    ema20 = df["close"].ewm(span=20).mean()
+    ema50 = df["close"].ewm(span=50).mean()
     if ema20.iloc[-1] > ema50.iloc[-1]:
-
         return "BUY"
-
     elif ema20.iloc[-1] < ema50.iloc[-1]:
-
         return "SELL"
-
     return "WAIT"
 
-# ======================================
+# =========================================
+# ATR
+# =========================================
+def calculate_atr(df, period=14):
+    high_low = df["high"] - df["low"]
+    high_close = np.abs(df["high"] - df["close"].shift())
+    low_close = np.abs(df["low"] - df["close"].shift())
+    ranges = pd.concat([high_low, high_close, low_close], axis=1)
+    true_range = np.max(ranges, axis=1)
+    atr = pd.Series(true_range).rolling(period).mean()
+    return atr.iloc[-1]
+
+# =========================================
 # POSITION
-# ======================================
-
+# =========================================
 def has_position():
-
-    positions = mt5.positions_get(
-        symbol=SYMBOL
-    )
-
+    positions = mt5.positions_get(symbol=SYMBOL)
     if positions is None:
-
         return False
-
     return len(positions) > 0
 
-# ======================================
-# ORDER
-# ======================================
-
-def send_order(signal):
-
-    tick = mt5.symbol_info_tick(
-        SYMBOL
-    )
-
+# =========================================
+# SEND ORDER
+# =========================================
+def send_order(signal, atr):
+    tick = mt5.symbol_info_tick(SYMBOL)
     if tick is None:
-
+        print("❌ SEM TICK")
         return
 
-    price = (
+    price = tick.ask if signal == "BUY" else tick.bid
+    sl_distance = atr * 2
+    tp_distance = atr * 4
 
-        tick.ask
-        if signal == "BUY"
-        else tick.bid
-    )
-
-    sl_distance = 300
-    tp_distance = 600
-
-    sl = (
-
-        price - sl_distance * 0.01
-        if signal == "BUY"
-        else price + sl_distance * 0.01
-    )
-
-    tp = (
-
-        price + tp_distance * 0.01
-        if signal == "BUY"
-        else price - tp_distance * 0.01
-    )
+    sl = price - sl_distance if signal == "BUY" else price + sl_distance
+    tp = price + tp_distance if signal == "BUY" else price - tp_distance
 
     request = {
-
         "action": mt5.TRADE_ACTION_DEAL,
-
         "symbol": SYMBOL,
-
         "volume": LOT,
-
-        "type": (
-
-            mt5.ORDER_TYPE_BUY
-            if signal == "BUY"
-            else mt5.ORDER_TYPE_SELL
-        ),
-
+        "type": mt5.ORDER_TYPE_BUY if signal == "BUY" else mt5.ORDER_TYPE_SELL,
         "price": price,
-
         "sl": sl,
-
         "tp": tp,
-
         "deviation": 20,
-
         "magic": MAGIC,
-
-        "comment": "ROBO_IA",
-
+        "comment": "ROBO_IA_XAUUSD",
         "type_time": mt5.ORDER_TIME_GTC,
-
-        "type_filling": (
-            mt5.ORDER_FILLING_IOC
-        ),
+        "type_filling": mt5.ORDER_FILLING_IOC,
     }
 
-    result = mt5.order_send(
-        request
-    )
-
+    result = mt5.order_send(request)
+    print("\n================================")
+    print("📈 ORDEM ENVIADA")
     print(result)
+    print("================================")
 
-# ======================================
-# LOOP
-# ======================================
-
-while True:
-
+# =========================================
+# SEND DASHBOARD
+# =========================================
+def send_dashboard_data(data):
+    print("\n================================")
+    print("🌐 ENVIANDO DADOS")
+    print(data)
     try:
+        response = requests.post(RAILWAY_API, json=data, timeout=15)
+        print("✅ STATUS:", response.status_code)
+        print("📨 RESPOSTA:", response.text)
+    except Exception as e:
+        print("❌ ERRO API:", e)
 
-        print("\n====================")
-        print("ROBO IA XAU/USD")
-        print("====================")
+# =========================================
+# MAIN LOOP
+# =========================================
+while True:
+    try:
+        print("\n================================")
+        print("🤖 ROBO IA XAU/USD")
+        print("================================")
 
+        # =================================
+        # SESSION
+        # =================================
         session = get_session()
+        print("⏰ SESSION:", session)
 
-        print("SESSION:", session)
-
+        # =================================
+        # MARKET DATA
+        # =================================
         df = get_data()
-
         if len(df) < 100:
-
-            print("SEM DADOS")
-
+            print("❌ SEM DADOS")
             time.sleep(10)
-
             continue
 
+        # =================================
+        # TREND
+        # =================================
         trend = get_trend(df)
 
-        result = prever(
-            model,
-            features
-        )
+        # =================================
+        # ATR
+        # =================================
+        atr = calculate_atr(df)
+        print("📊 ATR:", atr)
 
-        ai_signal = result.get(
-            "signal",
-            "WAIT"
-        )
+        # =================================
+        # AI PREDICTION (DADOS ATUAIS)
+        # =================================
+        try:
+            X_new, _ = criar_features(df)               # features do df mais recente
+            if hasattr(X_new, 'iloc'):
+                current_features = X_new.iloc[-1:].values.flatten()
+            else:
+                current_features = X_new[-1]
 
-        confidence = result.get(
-            "probability_up",
-            0
-        )
+            result = prever(model, current_features)
+        except Exception as e:
+            print("❌ Erro na IA:", e)
+            result = None
 
-        # ==============================
-        # SCORE
-        # ==============================
+        if result is None:
+            result = {"signal": "WAIT", "probability_up": 0, "probability_down": 1}
 
+        ai_signal = result.get("signal", "WAIT")
+        confidence = float(result.get("probability_up", 0))
+
+        # =================================
+        # NEWS AI
+        # =================================
+        news = analyze_news()
+        if news is None:
+            news = {"signal": "WAIT", "confidence": 0, "event": "none"}
+
+        news_signal = news["signal"]
+        news_confidence = news["confidence"]
+        news_event = news["event"]
+
+        # =================================
+        # SCORES
+        # =================================
         buy_score = 0
         sell_score = 0
 
         if trend == "BUY":
             buy_score += 1
-
         if trend == "SELL":
             sell_score += 1
 
         if ai_signal == "BUY":
             buy_score += 1
-
         if ai_signal == "SELL":
             sell_score += 1
 
-        if confidence > 0.55:
+        if confidence > 0.60:
             buy_score += 1
-
-        if confidence < 0.45:
+        if confidence < 0.40:
             sell_score += 1
 
-        # ==============================
+        if news_signal == "BUY":
+            buy_score += 1
+        if news_signal == "SELL":
+            sell_score += 1
+
+        # =================================
         # DEBUG
-        # ==============================
+        # =================================
+        print("📊 TREND:", trend)
+        print("🧠 AI:", ai_signal)
+        print("🎯 CONFIDENCE:", confidence)
+        print("📰 NEWS:", news_event)
+        print("🧠 NEWS SIGNAL:", news_signal)
+        print("🚀 BUY SCORE:", buy_score)
+        print("🔻 SELL SCORE:", sell_score)
 
-        print("TREND:", trend)
+        # =================================
+        # DASHBOARD
+        # =================================
+        dashboard_data = {
+            "signal": ai_signal,
+            "confidence": confidence,
+            "market": trend,
+            "bos": trend,
+            "choch": ai_signal,
+            "sweep": False,
+            "session": session,
+            "news": news_event,
+            "news_signal": news_signal,
+            "winrate": 68,
+            "trades": 42,
+            "pnl": "+$1,420"
+        }
 
-        print("AI:", ai_signal)
+        send_dashboard_data(dashboard_data)
 
-        print("CONFIDENCE:", confidence)
-
-        print("BUY SCORE:", buy_score)
-
-        print("SELL SCORE:", sell_score)
-
-        # ==============================
-        # SHARED DATA
-        # ==============================
-
-        shared_data["signal"] = ai_signal
-
-        shared_data["confidence"] = confidence
-
-        shared_data["market"] = trend
-
-        shared_data["bos"] = trend
-
-        shared_data["choch"] = ai_signal
-
-        shared_data["sweep"] = False
-
-        shared_data["session"] = session
-
-        shared_data["winrate"] = 68
-
-        shared_data["trades"] = 42
-
-        shared_data["pnl"] = "+$1,420"
-
-        # ==============================
+        # =================================
         # ENTRY
-        # ==============================
-
+        # =================================
         if not has_position():
-
-            if buy_score >= 2:
-
-                print("🚀 BUY")
-
-                send_order("BUY")
-
-            elif sell_score >= 2:
-
-                print("🔻 SELL")
-
-                send_order("SELL")
-
+            if buy_score >= 3:
+                print("🚀 BUY FORTE")
+                send_order("BUY", atr)
+            elif sell_score >= 3:
+                print("🔻 SELL FORTE")
+                send_order("SELL", atr)
             else:
-
                 print("❌ SEM ENTRADA")
-
         else:
-
             print("⚠ POSIÇÃO ABERTA")
 
         time.sleep(30)
 
     except Exception as e:
-
-        print("ERRO:", e)
-
+        print("❌ ERRO LOOP:", e)
         time.sleep(10)
