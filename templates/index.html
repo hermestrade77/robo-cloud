@@ -1,171 +1,182 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Trading Dashboard</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <title>ROBO IA XAU/USD</title>
     <style>
-        * { font-family: 'Inter', sans-serif; }
-        body { background: #0a0a0f; }
-        .glass {
-            background: rgba(255,255,255,0.05);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.1);
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0b0f1a;
+            color: #e0e0e0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
+            max-width: 700px;
+            margin: auto;
         }
-        .signal-buy { color: #00ff88; text-shadow: 0 0 20px rgba(0,255,136,0.5); }
-        .signal-sell { color: #ff4466; text-shadow: 0 0 20px rgba(255,68,102,0.5); }
-        .signal-wait { color: #ffaa00; text-shadow: 0 0 20px rgba(255,170,0,0.5); }
-        .pulse {
-            animation: pulse 2s infinite;
+        h1 {
+            text-align: center;
+            color: #ffaa00;
+            margin-bottom: 20px;
         }
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+        .card {
+            background: #131a2b;
+            border-radius: 12px;
+            padding: 15px 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
         }
-        .glow-border {
-            box-shadow: 0 0 15px rgba(0,255,136,0.1);
+        .signal {
+            font-size: 2.5rem;
+            font-weight: bold;
+            text-align: center;
+            padding: 10px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        .row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .label { color: #aaa; font-size: 0.9rem; }
+        .value { font-size: 1.2rem; font-weight: bold; }
+        .positive { color: #00ff99; }
+        .negative { color: #ff4444; }
+        .neutral { color: #ffaa00; }
+        hr { border-color: #222; margin: 15px 0; }
+        pre {
+            background: #0a0f1a;
+            padding: 10px;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            font-size: 0.9rem;
+        }
+        .timestamp {
+            text-align: right;
+            font-size: 0.8rem;
+            color: #666;
         }
     </style>
 </head>
-<body class="min-h-screen p-6">
-    <div class="max-w-7xl mx-auto">
-        
-        <!-- Header -->
-        <div class="flex justify-between items-center mb-8">
-            <div>
-                <h1 class="text-3xl font-bold text-white">🤖 AI Trading Dashboard</h1>
-                <p class="text-gray-400 text-sm mt-1">MetaTrader 5 • Análise em Tempo Real</p>
-            </div>
-            <div class="text-right">
-                <div class="text-gray-400 text-sm">Última atualização</div>
-                <div class="text-white font-semibold" id="lastUpdate">{{ last_update }}</div>
-            </div>
+<body>
+
+    <h1>🔥 ROBO IA XAU/USD</h1>
+
+    <div class="card">
+        <div class="row">
+            <span class="label">💰 PREÇO</span>
+            <span class="value" id="price">0</span>
         </div>
-
-        <!-- Cards Principais -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            
-            <!-- Sinal -->
-            <div class="glass rounded-2xl p-6 glow-border">
-                <div class="text-gray-400 text-sm uppercase tracking-wider mb-2">Sinal Atual</div>
-                <div class="text-4xl font-bold signal-{{ signal.lower() }}" id="signal">
-                    {{ signal }}
-                </div>
-                <div class="mt-4 flex items-center">
-                    <div class="text-gray-400 text-sm">Confiança:</div>
-                    <div class="ml-2 w-full bg-gray-700 rounded-full h-2">
-                        <div class="bg-gradient-to-r from-green-400 to-green-600 h-2 rounded-full" 
-                             style="width: {{ confidence }}%"></div>
-                    </div>
-                    <div class="ml-2 text-white font-semibold">{{ confidence }}%</div>
-                </div>
-            </div>
-
-            <!-- Mercado -->
-            <div class="glass rounded-2xl p-6">
-                <div class="text-gray-400 text-sm uppercase tracking-wider mb-2">Mercado</div>
-                <div class="text-3xl font-bold text-white">{{ market }}</div>
-                <div class="mt-2 text-2xl font-semibold text-white">${{ price }}</div>
-                <div class="text-gray-400 text-sm mt-1">Spread: {{ spread }}</div>
-            </div>
-
-            <!-- Performance -->
-            <div class="glass rounded-2xl p-6">
-                <div class="text-gray-400 text-sm uppercase tracking-wider mb-2">Performance</div>
-                <div class="text-3xl font-bold text-white">{{ winrate }}%</div>
-                <div class="text-gray-400 text-sm mt-2">{{ trades }} trades</div>
-                <div class="text-lg mt-1 font-semibold" style="color: {% if pnl >= 0 %}#00ff88{% else %}#ff4466{% endif %}">
-                    ${{ pnl }}
-                </div>
-            </div>
-
-            <!-- Sessão -->
-            <div class="glass rounded-2xl p-6">
-                <div class="text-gray-400 text-sm uppercase tracking-wider mb-2">Sessão</div>
-                <div class="text-3xl font-bold text-white">{{ session }}</div>
-                <div class="mt-2 flex items-center">
-                    <div class="w-2 h-2 rounded-full bg-green-400 pulse mr-2"></div>
-                    <span class="text-green-400 text-sm">Ativo</span>
-                </div>
-            </div>
+        <div class="row">
+            <span class="label">📊 MARKET</span>
+            <span class="value" id="market">NONE</span>
         </div>
-
-        <!-- Análise Estrutural -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-            
-            <div class="glass rounded-2xl p-6">
-                <div class="text-gray-400 text-sm uppercase tracking-wider mb-4">BOS (Break of Structure)</div>
-                <div class="text-2xl font-bold" style="color: {% if bos == 'BULLISH' %}#00ff88{% elif bos == 'BEARISH' %}#ff4466{% else %}#ffaa00{% endif %}">
-                    {{ bos }}
-                </div>
-            </div>
-
-            <div class="glass rounded-2xl p-6">
-                <div class="text-gray-400 text-sm uppercase tracking-wider mb-4">CHOCH (Change of Character)</div>
-                <div class="text-2xl font-bold" style="color: {% if choch == 'DETECTED' %}#00ff88{% else %}#ffaa00{% endif %}">
-                    {{ choch }}
-                </div>
-            </div>
-
-            <div class="glass rounded-2xl p-6">
-                <div class="text-gray-400 text-sm uppercase tracking-wider mb-4">Sweep (Liquidity Grab)</div>
-                <div class="text-2xl font-bold" style="color: {% if sweep %}#00ff88{% else %}#ffaa00{% endif %}">
-                    {% if sweep %}✅ DETECTED{% else %}❌ NONE{% endif %}
-                </div>
-            </div>
+        <div class="row">
+            <span class="label">📉 ATR</span>
+            <span class="value" id="atr">0</span>
         </div>
-
-        <!-- Últimos Sinais -->
-        <div class="glass rounded-2xl p-6">
-            <div class="text-gray-400 text-sm uppercase tracking-wider mb-4">📊 Últimas Análises</div>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left">
-                    <thead>
-                        <tr class="text-gray-500 text-sm">
-                            <th class="pb-3">Horário</th>
-                            <th class="pb-3">Par</th>
-                            <th class="pb-3">Sinal</th>
-                            <th class="pb-3">Confiança</th>
-                            <th class="pb-3">BOS</th>
-                            <th class="pb-3">CHOCH</th>
-                        </tr>
-                    </thead>
-                    <tbody id="signalsTable">
-                        <tr class="border-t border-gray-700/50">
-                            <td class="py-3 text-white">{{ last_update }}</td>
-                            <td class="py-3 text-white">{{ market }}</td>
-                            <td class="py-3 signal-{{ signal.lower() }} font-semibold">{{ signal }}</td>
-                            <td class="py-3 text-white">{{ confidence }}%</td>
-                            <td class="py-3 text-white">{{ bos }}</td>
-                            <td class="py-3 text-white">{{ choch }}</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+        <div class="row">
+            <span class="label">📡 SPREAD</span>
+            <span class="value" id="spread">0</span>
+        </div>
+        <div class="row">
+            <span class="label">📰 NEWS</span>
+            <span class="value" id="news">NONE</span>
+        </div>
+        <div class="row">
+            <span class="label">⏰ SESSION</span>
+            <span class="value" id="session">NONE</span>
         </div>
     </div>
 
+    <div class="card" id="signal-card">
+        <div class="signal" id="signal-text">WAIT</div>
+        <div class="row">
+            <span class="label">🎯 CONFIDENCE</span>
+            <span class="value" id="confidence">0%</span>
+        </div>
+        <div class="row">
+            <span class="label">🚀 BUY SCORE</span>
+            <span class="value" id="buy_score">0</span>
+        </div>
+        <div class="row">
+            <span class="label">🔻 SELL SCORE</span>
+            <span class="value" id="sell_score">0</span>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>🧠 MOTIVO DA ENTRADA</h2>
+        <pre id="reason">AGUARDANDO IA...</pre>
+    </div>
+
+    <div class="card">
+        <h2>🤖 IA ANALISANDO</h2>
+        <pre id="analysis">AGUARDANDO DADOS...</pre>
+    </div>
+
+    <div class="card">
+        <h2>📈 PERFORMANCE</h2>
+        <div class="row">
+            <span class="label">WINRATE</span>
+            <span class="value" id="winrate">0%</span>
+        </div>
+        <div class="row">
+            <span class="label">TRADES</span>
+            <span class="value" id="trades">0</span>
+        </div>
+        <div class="row">
+            <span class="label">PNL</span>
+            <span class="value" id="pnl">0</span>
+        </div>
+    </div>
+
+    <div class="timestamp" id="timestamp">NONE</div>
+
     <script>
-        // Atualização automática a cada 5 segundos
-        setInterval(async () => {
+        async function fetchData() {
             try {
-                const response = await fetch('/api/analysis');
-                const data = await response.json();
-                
-                // Atualizar elementos
-                document.getElementById('signal').textContent = data.signal;
-                document.getElementById('lastUpdate').textContent = data.last_update;
-                
-                // Atualizar classes do sinal
-                const signalEl = document.getElementById('signal');
-                signalEl.className = `text-4xl font-bold signal-${data.signal.toLowerCase()}`;
-                
-            } catch (error) {
-                console.error('Erro ao atualizar:', error);
+                const res = await fetch('/data');
+                const data = await res.json();
+
+                // Atualizar todos os campos
+                document.getElementById('price').textContent = data.price || 0;
+                document.getElementById('market').textContent = data.market || 'NONE';
+                document.getElementById('atr').textContent = data.atr || 0;
+                document.getElementById('spread').textContent = data.spread || 0;
+                document.getElementById('news').textContent = data.news || 'NONE';
+                document.getElementById('session').textContent = data.session || 'NONE';
+                document.getElementById('confidence').textContent = (data.confidence || 0) + '%';
+                document.getElementById('buy_score').textContent = data.buy_score || 0;
+                document.getElementById('sell_score').textContent = data.sell_score || 0;
+                document.getElementById('reason').textContent = data.reason || 'AGUARDANDO IA...';
+                document.getElementById('analysis').textContent = data.analysis || 'AGUARDANDO DADOS...';
+                document.getElementById('winrate').textContent = (data.winrate || 0) + '%';
+                document.getElementById('trades').textContent = data.trades || 0;
+                document.getElementById('pnl').textContent = data.pnl || 0;
+                document.getElementById('timestamp').textContent = data.timestamp || 'NONE';
+
+                // Sinal com cor dinâmica
+                const signal = data.signal || 'WAIT';
+                const signalEl = document.getElementById('signal-text');
+                signalEl.textContent = signal;
+                if (signal === 'BUY') {
+                    signalEl.style.color = '#00ff99';
+                } else if (signal === 'SELL') {
+                    signalEl.style.color = '#ff4444';
+                } else {
+                    signalEl.style.color = '#ffaa00';
+                }
+            } catch (err) {
+                console.error('Erro ao buscar dados:', err);
             }
-        }, 5000);
+        }
+
+        // Atualiza a cada 2 segundos
+        setInterval(fetchData, 2000);
+        fetchData(); // primeira chamada imediata
     </script>
 </body>
 </html>
