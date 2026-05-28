@@ -193,7 +193,6 @@ def obter_features_noticias():
         except:
             pass
 
-    # Fallback
     NEWS_SCHEDULE = [
         (12, 30, "US Core PCE Price Index", -1),
         (12, 30, "US GDP Annualized", -1),
@@ -228,73 +227,9 @@ def obter_features_noticias():
     }
 
 # ============================================
-# FEATURES MACRO (FED, JUROS)
+# FEATURES MACRO (AGORA VEM DO NEWS_FILTER)
 # ============================================
-def obter_features_macro():
-    agora = datetime.now(timezone.utc)
-    fomc_dates = [
-        datetime(2026, 1, 28, 19, 0, tzinfo=timezone.utc),
-        datetime(2026, 3, 18, 18, 0, tzinfo=timezone.utc),
-        datetime(2026, 5, 6, 18, 0, tzinfo=timezone.utc),
-        datetime(2026, 6, 17, 18, 0, tzinfo=timezone.utc),
-        datetime(2026, 7, 29, 18, 0, tzinfo=timezone.utc),
-        datetime(2026, 9, 16, 18, 0, tzinfo=timezone.utc),
-        datetime(2026, 11, 4, 19, 0, tzinfo=timezone.utc),
-        datetime(2026, 12, 16, 19, 0, tzinfo=timezone.utc),
-    ]
-    proxima = None
-    for d in fomc_dates:
-        if d > agora:
-            proxima = d
-            break
-    dias_ate_fomc = 999
-    fomc_hawkish = 0
-    if proxima:
-        dias_ate_fomc = (proxima - agora).days
-        fomc_hawkish = -1   # simplificação: juros altos pressionam ouro
-
-    return {
-        'fomc_days_away': dias_ate_fomc,
-        'fomc_hawkish': fomc_hawkish
-    }
-
-# ============================================
-# FUNÇÃO PARA PROCESSAR UM TIMEFRAME MAIOR
-# ============================================
-def processar_timeframe(df, prefixo):
-    if df is None or len(df) < 50:
-        return pd.DataFrame()
-    df = df.copy()
-    df = adicionar_indicadores_classicos(df)
-    fib = calcular_fibonacci(df)
-    if fib is not None:
-        for nome, valor in fib['distancias'].items():
-            df[nome] = valor
-    else:
-        for nome in ['fib_0_dist', 'fib_236_dist', 'fib_382_dist', 'fib_500_dist',
-                     'fib_618_dist', 'fib_786_dist', 'fib_100_dist', 'fib_1618_dist']:
-            df[nome] = 0.0
-    df['return'] = df['close'].pct_change()
-    df['volatility'] = df['return'].rolling(10).std()
-    df['ema_fast'] = df['close'].ewm(span=9).mean()
-    df['ema_slow'] = df['close'].ewm(span=21).mean()
-    df['trend'] = df['ema_fast'] - df['ema_slow']
-    df['trend_strength'] = abs(df['trend'])
-    df['momentum'] = df['close'] - df['close'].shift(5)
-
-    colunas = [
-        "close", "return", "volatility", "trend", "trend_strength", "momentum",
-        "fib_0_dist", "fib_236_dist", "fib_382_dist", "fib_500_dist",
-        "fib_618_dist", "fib_786_dist", "fib_100_dist", "fib_1618_dist",
-        "rsi", "macd", "adx", "plus_di", "minus_di",
-        "bb_position", "bb_width",
-        "stoch_k", "stoch_d",
-        "dist_sma50", "dist_sma200"
-    ]
-    existentes = [c for c in colunas if c in df.columns]
-    df = df[existentes].dropna()
-    df = df.add_prefix(f'{prefixo}_')
-    return df
+from news.news_filter import obter_features_macro
 
 # ============================================
 # FUNÇÃO PRINCIPAL CRIAR FEATURES
@@ -341,7 +276,9 @@ def criar_features(data_m15, data_h1=None, data_h4=None, data_d1=None, data_w1=N
         "dist_sma50", "dist_sma200",
         "news_15m", "news_30m", "news_60m", "news_240m",
         "news_next_time", "news_high_impact", "news_direction_signal",
-        "fomc_days_away", "fomc_hawkish"
+        "macro_events_12h", "macro_events_24h", "macro_events_72h", "macro_events_168h",
+        "macro_buy_signals", "macro_sell_signals",
+        "macro_days_to_next_event", "macro_next_direction"
     ]
 
     X = df[features_m15].values
@@ -361,6 +298,41 @@ def criar_features(data_m15, data_h1=None, data_h4=None, data_d1=None, data_w1=N
         merged[cols_tf] = merged[cols_tf].fillna(0)
         return merged
 
+    def processar_timeframe(df, prefixo):
+        if df is None or len(df) < 50:
+            return pd.DataFrame()
+        df = df.copy()
+        df = adicionar_indicadores_classicos(df)
+        fib = calcular_fibonacci(df)
+        if fib is not None:
+            for nome, valor in fib['distancias'].items():
+                df[nome] = valor
+        else:
+            for nome in ['fib_0_dist', 'fib_236_dist', 'fib_382_dist', 'fib_500_dist',
+                         'fib_618_dist', 'fib_786_dist', 'fib_100_dist', 'fib_1618_dist']:
+                df[nome] = 0.0
+        df['return'] = df['close'].pct_change()
+        df['volatility'] = df['return'].rolling(10).std()
+        df['ema_fast'] = df['close'].ewm(span=9).mean()
+        df['ema_slow'] = df['close'].ewm(span=21).mean()
+        df['trend'] = df['ema_fast'] - df['ema_slow']
+        df['trend_strength'] = abs(df['trend'])
+        df['momentum'] = df['close'] - df['close'].shift(5)
+
+        colunas = [
+            "close", "return", "volatility", "trend", "trend_strength", "momentum",
+            "fib_0_dist", "fib_236_dist", "fib_382_dist", "fib_500_dist",
+            "fib_618_dist", "fib_786_dist", "fib_100_dist", "fib_1618_dist",
+            "rsi", "macd", "adx", "plus_di", "minus_di",
+            "bb_position", "bb_width",
+            "stoch_k", "stoch_d",
+            "dist_sma50", "dist_sma200"
+        ]
+        existentes = [c for c in colunas if c in df.columns]
+        df = df[existentes].dropna()
+        df = df.add_prefix(f'{prefixo}_')
+        return df
+
     merged = df.copy()
     if data_h1 is not None and len(data_h1) >= 50:
         merged = mesclar_timeframe(merged, data_h1, 'h1')
@@ -371,7 +343,6 @@ def criar_features(data_m15, data_h1=None, data_h4=None, data_d1=None, data_w1=N
     if data_w1 is not None and len(data_w1) >= 30:
         merged = mesclar_timeframe(merged, data_w1, 'w1')
 
-    # Monta matriz final
     colunas_base = features_m15
     for prefixo in ['h1', 'h4', 'd1', 'w1']:
         cols = [c for c in merged.columns if c.startswith(f'{prefixo}_')]
@@ -379,7 +350,6 @@ def criar_features(data_m15, data_h1=None, data_h4=None, data_d1=None, data_w1=N
             X_extra = merged[cols].values
             X = np.hstack([X, X_extra])
 
-    # Target
     df["target"] = (df["close"].shift(-1) > df["close"]).astype(int)
     y = df["target"].values
     valid_idx = ~np.isnan(y)
