@@ -1,41 +1,42 @@
-import MetaTrader5 as mt5
-from datetime import datetime, timedelta, timezone
+import feedparser
 
 def get_gold_news(minutes=120):
     """
-    Retorna lista de dicionários com 'headline' e 'time' das notícias
-    recentes (últimos 'minutes' minutos) relacionadas a ouro/XAUUSD.
-    Se o MT5 não estiver conectado, retorna lista vazia.
+    Retorna lista de dicionários com 'headline' e 'time' das últimas notícias
+    relacionadas a ouro/XAUUSD.
+    Usa o Google News RSS (sem API key).
     """
-    if not mt5.initialize():
-        print("⚠️ MT5 não inicializado em get_gold_news()")
-        return []
-
-    agora = datetime.now(timezone.utc)
-    inicio = agora - timedelta(minutes=minutes)
-    
+    headlines = []
     try:
-        # Obtém notícias a partir do timestamp inicial (em UTC)
-        # O argumento 'datetime_from' aceita datetime.
-        news = mt5.news_get(datetime_from=inicio, datetime_to=agora)
-        if news is None or len(news) == 0:
-            return []
-        
-        headlines = []
-        for n in news:
-            # Verifica atributos com segurança
-            titulo = getattr(n, 'title', '')
-            corpo = getattr(n, 'body', '')
-            hora = getattr(n, 'time', None)
-            # Filtra por palavras-chave (case insensitive)
-            texto = (titulo + ' ' + corpo).lower()
-            if any(k in texto for k in ['xau', 'gold', 'ouro', 'gold price', 'xauusd']):
-                hora_str = datetime.fromtimestamp(hora, tz=timezone.utc).strftime('%H:%M') if hora else ''
+        # URL do Google News para "XAUUSD gold" ordenado por data
+        url = "https://news.google.com/rss/search?q=XAUUSD+gold&hl=en&gl=US&ceid=US:en"
+        feed = feedparser.parse(url)
+        if feed.entries:
+            for entry in feed.entries[:10]:
+                # Extrai data (published) se disponível
+                pub = entry.get('published', '')
                 headlines.append({
-                    'headline': titulo,
-                    'time': hora_str
+                    'headline': entry.title,
+                    'time': pub[:16] if pub else ''
                 })
-        return headlines[:10]  # limita a 10 para o dashboard
+            return headlines
     except Exception as e:
-        print(f"❌ Erro ao buscar notícias MT5: {e}")
-        return []
+        print(f"❌ Erro ao buscar notícias no Google News: {e}")
+
+    # Se o Google News falhar, tenta o feed da Investing.com
+    try:
+        url2 = "https://www.investing.com/rss/news_gold.rss"
+        feed2 = feedparser.parse(url2)
+        if feed2.entries:
+            for entry in feed2.entries[:10]:
+                pub = entry.get('published', '')
+                headlines.append({
+                    'headline': entry.title,
+                    'time': pub[:16] if pub else ''
+                })
+            return headlines
+    except Exception as e:
+        print(f"❌ Erro no feed da Investing.com: {e}")
+
+    # Fallback final: lista vazia
+    return headlines
