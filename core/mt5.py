@@ -34,18 +34,15 @@ BREAKEVEN_PCT = 0.4
 TRAILING_STOP_DIST_BASE = 1.5
 RAILWAY_API = "https://robo-cloud-production.up.railway.app/update"
 
-# ========== CONEXÃO MT5 ==========
 if not mt5.initialize():
     print("❌ ERRO AO CONECTAR MT5")
     quit()
 print("✅ MT5 CONECTADO")
 
-# ========== CARREGAR / CRIAR MODELO (com reset e scaler) ==========
 modelo_path = "modelo_ia.pkl"
 features_path = "features_hist.npy"
 labels_path = "labels_hist.npy"
 
-# Remove arquivos antigos para garantir recriação limpa
 for path in [modelo_path, features_path, labels_path]:
     if os.path.exists(path):
         os.remove(path)
@@ -66,7 +63,6 @@ print(f"🔢 Features geradas: {X.shape[1]} colunas, {len(y)} amostras")
 X_hist = X
 y_hist = np.array(y)
 
-# Escala os dados para melhor convergência
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X_hist)
 
@@ -93,7 +89,6 @@ pico_lucro_dia = 0.0
 trades_dia = 0
 pausado_ate = None
 
-# ========== FUNÇÕES AUXILIARES ==========
 def obter_dados(symbol=SYMBOL, timeframe=TIMEFRAME, barras=500):
     rates = mt5.copy_rates_from_pos(symbol, timeframe, 0, barras)
     if rates is None: return pd.DataFrame()
@@ -302,7 +297,7 @@ def prever_com_modelo(features):
     else: sinal="WAIT"
     return {"signal":sinal,"probability_up":p,"probability_down":1-p}
 
-# ========== LOOP PRINCIPAL ==========
+# ========== LOOP PRINCIPAL (SLEEP 10s) ==========
 while True:
     try:
         print("\n🤖 ROBO IA XAU/USD (FULL)")
@@ -340,7 +335,6 @@ while True:
 
         gerenciar_posicoes(prob, atr)
 
-        # Fibonacci
         fib = calcular_fibonacci(df)
         fib_confirm = False; sl_fibo=tp_fibo=preco_fibo=None
         if fib and sinal_ia=="COMPRA":
@@ -358,24 +352,20 @@ while True:
                 preco_fibo = fib['niveis']['618'] if d618<=d382 else fib['niveis']['382']
                 sl_fibo = fib['niveis']['786']; tp_fibo = fib['niveis']['100']
 
-        # Padrões gráficos
         padrao_info = None; padrao_tf = None
         for tf, df_tf in [('W1',df_w1),('D1',df_d1),('H4',df_h4)]:
             if df_tf is None: continue
             p = detectar_duplo_topo_fundo(df_tf) or detectar_ombro_cabeca_ombro(df_tf)
             if p: padrao_info=p; padrao_tf=tf; break
 
-        # Notícias de alto impacto
         noticias = analyze_news()
         if noticias is None: noticias={"has_high_impact":False,"event":"NENHUMA","news_signal":"NEUTRAL"}
         evento = noticias.get("event","NENHUMA")
         alto_impacto = noticias.get("has_high_impact",False)
         sinal_news = noticias.get("news_signal","NEUTRAL")
 
-        # Notícias recentes do ouro (para o dashboard)
         gold_news_list = get_gold_news(minutes=120)
 
-        # Scores
         pts_c, pts_v = 0,0
         motivos = []
         if tendencia=="COMPRA": pts_c+=1; motivos.append("Tendência alta")
@@ -397,7 +387,6 @@ while True:
         elif sinal_news=="VENDA": pts_v+=1; motivos.append(f"Notícia USD favorece VENDA")
         elif alto_impacto: motivos.append(f"⚠️ Notícia alto impacto: {evento}")
 
-        # Cálculo SL/TP/lote
         saldo, eq, _, _ = obter_info_conta()
         risco = obter_risco_atual(RISCO_PERCENTUAL)
         valor_risco = saldo*(risco/100)
@@ -441,7 +430,6 @@ while True:
         wr,_,_ = obter_winrate()
         resumo = f"PnL dia ${lucro_dia:.2f} | Trades {trades_dia} | WR {wr*100:.1f}%"
 
-        # ----- SHAP EXPLANATION -----
         try:
             gb = modelos[1]
             explainer = shap.TreeExplainer(gb)
@@ -504,7 +492,7 @@ Motivo: {motivo_str}
             if not pode: print("❌", msg)
             elif lote==0: print("❌ Lote zerado")
             else: print("⚠️ POSIÇÃO ABERTA")
-        time.sleep(30)
+        time.sleep(10)   # <--- AGORA 10 SEGUNDOS
     except Exception as e:
         print("❌ ERRO LOOP:", e)
         time.sleep(10)

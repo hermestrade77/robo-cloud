@@ -2,9 +2,10 @@ import pandas as pd
 import numpy as np
 import MetaTrader5 as mt5
 from datetime import datetime, timedelta, timezone
+from news.gold_news import get_gold_news
 
 # ============================================
-# DETECÇÃO DE SWINGS E FIBONACCI
+# DETECÇÃO DE SWINGS E FIBONACCI (mantido)
 # ============================================
 def detectar_swings(df, janela=5):
     highs = df['high'].values
@@ -249,7 +250,33 @@ def obter_features_macro():
     }
 
 # ============================================
-# LISTA FIXA DE FEATURES (GARANTE MESMA DIMENSÃO)
+# NOVO: FEATURES DE NOTÍCIAS DO OURO (SENTIMENTO)
+# ============================================
+def obter_features_gold_news():
+    headlines = get_gold_news(minutes=120)   # última 2 horas
+    num = len(headlines)
+    bullish_words = ['alta', 'bull', 'sobe', 'ganha', 'rise', 'up', 'record', 'high', 'forte', 'rally', 'positive', 'compra', 'bullion']
+    bearish_words = ['baixa', 'bear', 'cai', 'perde', 'fall', 'down', 'low', 'weak', 'negative', 'decline', 'sell-off', 'venda', 'perda']
+    bullish_score = 0
+    bearish_score = 0
+    for item in headlines:
+        headline = item['headline'].lower()
+        for w in bullish_words:
+            if w in headline:
+                bullish_score += 1
+        for w in bearish_words:
+            if w in headline:
+                bearish_score += 1
+    net_sentiment = bullish_score - bearish_score
+    return {
+        'gold_news_count': num,
+        'gold_news_bullish': bullish_score,
+        'gold_news_bearish': bearish_score,
+        'gold_news_sentiment': net_sentiment
+    }
+
+# ============================================
+# LISTA FIXA DE FEATURES (ATUALIZADA)
 # ============================================
 FEATURES_BASE_M15 = [
     "close","return","volatility","trend","trend_strength","momentum",
@@ -264,7 +291,9 @@ FEATURES_BASE_M15 = [
     "news_next_time","news_high_impact","news_direction_signal",
     "macro_events_12h","macro_events_24h","macro_events_72h","macro_events_168h",
     "macro_buy_signals","macro_sell_signals",
-    "macro_days_to_next_event","macro_next_direction"
+    "macro_days_to_next_event","macro_next_direction",
+    # Novas features de notícias do ouro
+    "gold_news_count", "gold_news_bullish", "gold_news_bearish", "gold_news_sentiment"
 ]
 
 FEATURES_TF = [
@@ -286,7 +315,7 @@ for prefix in PREFIXOS_TF:
         FEATURES_COMPLETAS.append(f'{prefix}_{col}')
 
 # ============================================
-# FUNÇÃO PRINCIPAL criar_features (CORRIGIDA)
+# FUNÇÃO PRINCIPAL criar_features (atualizada)
 # ============================================
 def criar_features(data_m15, data_h1=None, data_h4=None, data_d1=None, data_w1=None, symbol="XAUUSD.pro"):
     df = pd.DataFrame(data_m15)
@@ -310,15 +339,17 @@ def criar_features(data_m15, data_h1=None, data_h4=None, data_d1=None, data_w1=N
     df = calcular_tick_volume(df, symbol)
     df = adicionar_indicadores_classicos(df)
 
+    # Adiciona features de notícias, macro e agora gold_news
     news_feats = obter_features_noticias()
     macro_feats = obter_features_macro()
-    for k, v in {**news_feats, **macro_feats}.items():
+    gold_news_feats = obter_features_gold_news()
+    for k, v in {**news_feats, **macro_feats, **gold_news_feats}.items():
         df[k] = v
 
     df = df.dropna()
     n_linhas = len(df)
 
-    # Dicionário para montar DataFrame final de forma eficiente
+    # Dicionário para montar DataFrame final
     data_dict = {}
     for col in FEATURES_BASE_M15:
         data_dict[col] = df[col].values if col in df.columns else np.zeros(n_linhas)
@@ -326,17 +357,14 @@ def criar_features(data_m15, data_h1=None, data_h4=None, data_d1=None, data_w1=N
     # Processa timeframes extras
     tf_map = {'h1': data_h1, 'h4': data_h4, 'd1': data_d1, 'w1': data_w1}
     df['time_dt'] = pd.to_datetime(df['time'])
-    
+
     for prefix, df_tf in tf_map.items():
-        # Inicializa todas as colunas do timeframe com zeros
         for col_tf in FEATURES_TF:
             data_dict[f'{prefix}_{col_tf}'] = np.zeros(n_linhas)
-        
+
         if df_tf is not None and len(df_tf) >= 50:
             df_tf = pd.DataFrame(df_tf)
-            # CRIA time_dt IMEDIATAMENTE
             df_tf['time_dt'] = pd.to_datetime(df_tf['time'])
-            
             df_tf = adicionar_indicadores_classicos(df_tf)
             fib_tf = calcular_fibonacci(df_tf)
             if fib_tf:
@@ -357,35 +385,24 @@ def criar_features(data_m15, data_h1=None, data_h4=None, data_d1=None, data_w1=N
             cols_tf = [c for c in FEATURES_TF if c in df_tf.columns]
             if not cols_tf:
                 continue
-            
-            # AGORA time_dt EXISTE, podemos filtrar
             df_tf = df_tf[['time_dt'] + cols_tf].dropna()
             if df_tf.empty:
                 continue
-                
             df_tf = df_tf.rename(columns={c: f'{prefix}_{c}' for c in cols_tf})
-            
             merged = pd.merge_asof(
                 df[['time_dt']].sort_values('time_dt'),
                 df_tf.sort_values('time_dt'),
                 on='time_dt',
                 direction='backward'
             )
-            
             for col in [f'{prefix}_{c}' for c in FEATURES_TF]:
                 if col in merged.columns:
                     data_dict[col] = merged[col].fillna(0.0).values
 
-    # Monta o DataFrame final de uma vez
     final_df = pd.DataFrame(data_dict)
-
-    # Garante que todas as colunas estejam na ordem correta
     X = final_df[FEATURES_COMPLETAS].values.astype(np.float64)
-    
-    # Remove qualquer NaN/Inf residual
     X = np.nan_to_num(X, nan=0.0, posinf=0.0, neginf=0.0)
 
-    # Target
     df["target"] = (df["close"].shift(-1) > df["close"]).astype(int)
     y = df["target"].values
     valid = ~np.isnan(y)

@@ -20,7 +20,7 @@ dados_compartilhados = {
     "trades": 0,
     "pnl": 0,
     "timestamp": "NENHUM",
-    "gold_news": []   # lista de objetos {headline, time}
+    "gold_news": []
 }
 
 @app.route("/")
@@ -107,7 +107,6 @@ def home():
                     if (!res.ok) throw new Error('Erro HTTP ' + res.status);
                     const data = await res.json();
 
-                    // Atualiza campos básicos
                     document.getElementById('sinal').textContent = data.signal;
                     const sinalEl = document.getElementById('sinal');
                     sinalEl.className = 'sinal ' + (data.signal === 'COMPRA' ? 'buy' : data.signal === 'VENDA' ? 'sell' : 'wait');
@@ -125,7 +124,6 @@ def home():
                     document.getElementById('timestamp').textContent = data.timestamp;
                     document.getElementById('analysis').textContent = data.analysis;
 
-                    // Atualiza lista de notícias do ouro
                     const newsContainer = document.getElementById('gold_news_container');
                     if (data.gold_news && data.gold_news.length > 0) {
                         let html = '';
@@ -142,12 +140,10 @@ def home():
 
                 } catch (err) {
                     console.error('Erro ao atualizar dados:', err);
-                    // Mostra erro visualmente (opcional)
-                    document.getElementById('timestamp').textContent = 'ERRO AO ATUALIZAR';
                 }
             }
 
-            setInterval(atualizarDados, 2000);
+            setInterval(atualizarDados, 1000);   // 1 segundo
             atualizarDados();
         </script>
     </body>
