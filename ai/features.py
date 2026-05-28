@@ -113,7 +113,7 @@ def adicionar_indicadores_classicos(df):
     df['plus_di'] = plus_di
     df['minus_di'] = minus_di
 
-    # Bollinger Bands
+    # Bollinger
     sma20 = close.rolling(20).mean()
     std20 = close.rolling(20).std()
     upper_band = sma20 + 2 * std20
@@ -136,7 +136,7 @@ def adicionar_indicadores_classicos(df):
     return df
 
 # ============================================
-# NOTÍCIAS (curto prazo) – retorna apenas números
+# NOTÍCIAS (curto prazo)
 # ============================================
 def obter_features_noticias():
     agora = datetime.now(timezone.utc)
@@ -162,7 +162,6 @@ def obter_features_noticias():
                                 contagens[f'news_{m}m'] += 1
                         if diff_min < next_event_time:
                             next_event_time = diff_min
-                            # direção simplificada: se menciona FOMC, NFP, etc., sinal -1 (venda ouro)
                             name = getattr(ev, 'name', '').lower()
                             if any(k in name for k in ["nonfarm", "nfp", "cpi", "gdp", "core pce", "ism"]):
                                 news_direction_signal = -1
@@ -171,9 +170,7 @@ def obter_features_noticias():
         except:
             pass
 
-    # Fallback fixo (apenas para preencher features)
     if next_event_time == 999:
-        # Tenta uma tabela fixa simples
         for h, m in [(12,30), (13,30), (14,0), (18,0)]:
             noticia_utc = agora.replace(hour=h, minute=m, second=0, microsecond=0)
             if noticia_utc < agora:
@@ -184,7 +181,7 @@ def obter_features_noticias():
                     contagens[f'news_{janela}m'] += 1
             if diff_min < next_event_time:
                 next_event_time = diff_min
-                news_direction_signal = -1  # simplificação
+                news_direction_signal = -1
 
     return {
         'news_15m': contagens['news_15m'],
@@ -197,19 +194,19 @@ def obter_features_noticias():
     }
 
 # ============================================
-# MACRO (Fed, juros, eventos globais) – apenas números
+# MACRO (Fed, juros, eventos globais)
 # ============================================
 GLOBAL_EVENTS = [
-    (2026,1,28,19,0,-1), (2026,3,18,18,0,-1), (2026,5,6,18,0,-1), (2026,6,17,18,0,-1),
-    (2026,7,29,18,0,-1), (2026,9,16,18,0,-1), (2026,11,4,19,0,-1), (2026,12,16,19,0,-1),
-    (2026,1,21,13,45,1), (2026,3,11,13,45,1), (2026,4,22,13,45,1), (2026,6,10,13,45,1),
-    (2026,7,22,13,45,1), (2026,9,9,13,45,1), (2026,10,28,13,45,1), (2026,12,16,13,45,1),
-    (2026,1,9,13,30,-1), (2026,2,6,13,30,-1), (2026,3,6,13,30,-1), (2026,4,3,13,30,-1),
-    (2026,5,1,13,30,-1), (2026,6,5,13,30,-1), (2026,7,2,13,30,-1), (2026,8,7,13,30,-1),
-    (2026,9,4,13,30,-1), (2026,10,2,13,30,-1), (2026,11,6,13,30,-1), (2026,12,4,13,30,-1),
-    (2026,1,14,13,30,-1), (2026,2,11,13,30,-1), (2026,3,11,13,30,-1), (2026,4,14,12,30,-1),
-    (2026,5,13,12,30,-1), (2026,6,10,12,30,-1), (2026,7,14,12,30,-1), (2026,8,12,12,30,-1),
-    (2026,9,15,12,30,-1), (2026,10,13,12,30,-1), (2026,11,12,13,30,-1), (2026,12,11,13,30,-1),
+    (2026,1,28,19,0,-1),(2026,3,18,18,0,-1),(2026,5,6,18,0,-1),(2026,6,17,18,0,-1),
+    (2026,7,29,18,0,-1),(2026,9,16,18,0,-1),(2026,11,4,19,0,-1),(2026,12,16,19,0,-1),
+    (2026,1,21,13,45,1),(2026,3,11,13,45,1),(2026,4,22,13,45,1),(2026,6,10,13,45,1),
+    (2026,7,22,13,45,1),(2026,9,9,13,45,1),(2026,10,28,13,45,1),(2026,12,16,13,45,1),
+    (2026,1,9,13,30,-1),(2026,2,6,13,30,-1),(2026,3,6,13,30,-1),(2026,4,3,13,30,-1),
+    (2026,5,1,13,30,-1),(2026,6,5,13,30,-1),(2026,7,2,13,30,-1),(2026,8,7,13,30,-1),
+    (2026,9,4,13,30,-1),(2026,10,2,13,30,-1),(2026,11,6,13,30,-1),(2026,12,4,13,30,-1),
+    (2026,1,14,13,30,-1),(2026,2,11,13,30,-1),(2026,3,11,13,30,-1),(2026,4,14,12,30,-1),
+    (2026,5,13,12,30,-1),(2026,6,10,12,30,-1),(2026,7,14,12,30,-1),(2026,8,12,12,30,-1),
+    (2026,9,15,12,30,-1),(2026,10,13,12,30,-1),(2026,11,12,13,30,-1),(2026,12,11,13,30,-1),
 ]
 
 def obter_features_macro():
@@ -252,10 +249,46 @@ def obter_features_macro():
     }
 
 # ============================================
-# FUNÇÃO PRINCIPAL criar_features
+# LISTA FIXA DE FEATURES (GARANTE MESMA DIMENSÃO)
+# ============================================
+FEATURES_BASE_M15 = [
+    "close","return","volatility","trend","trend_strength","momentum",
+    "fib_0_dist","fib_236_dist","fib_382_dist","fib_500_dist",
+    "fib_618_dist","fib_786_dist","fib_100_dist","fib_1618_dist",
+    "tick_volume","tick_volume_ratio",
+    "rsi","macd","adx","plus_di","minus_di",
+    "bb_position","bb_width",
+    "stoch_k","stoch_d",
+    "dist_sma50","dist_sma200",
+    "news_15m","news_30m","news_60m","news_240m",
+    "news_next_time","news_high_impact","news_direction_signal",
+    "macro_events_12h","macro_events_24h","macro_events_72h","macro_events_168h",
+    "macro_buy_signals","macro_sell_signals",
+    "macro_days_to_next_event","macro_next_direction"
+]
+
+FEATURES_TF = [
+    "close","return","volatility","trend","trend_strength","momentum",
+    "fib_0_dist","fib_236_dist","fib_382_dist","fib_500_dist",
+    "fib_618_dist","fib_786_dist","fib_100_dist","fib_1618_dist",
+    "rsi","macd","adx","plus_di","minus_di",
+    "bb_position","bb_width",
+    "stoch_k","stoch_d",
+    "dist_sma50","dist_sma200"
+]
+
+PREFIXOS_TF = ['h1', 'h4', 'd1', 'w1']
+
+# Constrói a lista completa de features
+FEATURES_COMPLETAS = FEATURES_BASE_M15.copy()
+for prefix in PREFIXOS_TF:
+    for col in FEATURES_TF:
+        FEATURES_COMPLETAS.append(f'{prefix}_{col}')
+
+# ============================================
+# FUNÇÃO PRINCIPAL criar_features (CORRIGIDA)
 # ============================================
 def criar_features(data_m15, data_h1=None, data_h4=None, data_d1=None, data_w1=None, symbol="XAUUSD.pro"):
-    # --- M15 ---
     df = pd.DataFrame(data_m15)
     df["return"] = df["close"].pct_change()
     df["volatility"] = df["return"].rolling(10).std()
@@ -283,80 +316,74 @@ def criar_features(data_m15, data_h1=None, data_h4=None, data_d1=None, data_w1=N
         df[k] = v
 
     df = df.dropna()
+    n_linhas = len(df)
 
-    features_m15 = [
-        "close","return","volatility","trend","trend_strength","momentum",
-        "fib_0_dist","fib_236_dist","fib_382_dist","fib_500_dist",
-        "fib_618_dist","fib_786_dist","fib_100_dist","fib_1618_dist",
-        "tick_volume","tick_volume_ratio",
-        "rsi","macd","adx","plus_di","minus_di",
-        "bb_position","bb_width",
-        "stoch_k","stoch_d",
-        "dist_sma50","dist_sma200",
-        "news_15m","news_30m","news_60m","news_240m",
-        "news_next_time","news_high_impact","news_direction_signal",
-        "macro_events_12h","macro_events_24h","macro_events_72h","macro_events_168h",
-        "macro_buy_signals","macro_sell_signals",
-        "macro_days_to_next_event","macro_next_direction"
-    ]
+    # Dicionário para montar DataFrame final de forma eficiente
+    data_dict = {}
+    for col in FEATURES_BASE_M15:
+        data_dict[col] = df[col].values if col in df.columns else np.zeros(n_linhas)
 
-    X = df[features_m15].values
-
-    # --- Multitimeframe ---
-    def processar_tf(df_tf, prefixo):
-        if df_tf is None or len(df_tf) < 50:
-            return pd.DataFrame()
-        df_tf = pd.DataFrame(df_tf)
-        df_tf = adicionar_indicadores_classicos(df_tf)
-        fib_tf = calcular_fibonacci(df_tf)
-        if fib_tf:
-            for nome, val in fib_tf['distancias'].items():
-                df_tf[nome] = val
-        else:
-            for nome in ['fib_0_dist','fib_236_dist','fib_382_dist','fib_500_dist',
-                         'fib_618_dist','fib_786_dist','fib_100_dist','fib_1618_dist']:
-                df_tf[nome] = 0.0
-        df_tf["return"] = df_tf["close"].pct_change()
-        df_tf["volatility"] = df_tf["return"].rolling(10).std()
-        df_tf["ema_fast"] = df_tf["close"].ewm(span=9).mean()
-        df_tf["ema_slow"] = df_tf["close"].ewm(span=21).mean()
-        df_tf["trend"] = df_tf["ema_fast"] - df_tf["ema_slow"]
-        df_tf["trend_strength"] = abs(df_tf["trend"])
-        df_tf["momentum"] = df_tf["close"] - df_tf["close"].shift(5)
-        cols = [
-            "close","return","volatility","trend","trend_strength","momentum",
-            "fib_0_dist","fib_236_dist","fib_382_dist","fib_500_dist",
-            "fib_618_dist","fib_786_dist","fib_100_dist","fib_1618_dist",
-            "rsi","macd","adx","plus_di","minus_di",
-            "bb_position","bb_width",
-            "stoch_k","stoch_d",
-            "dist_sma50","dist_sma200"
-        ]
-        exist = [c for c in cols if c in df_tf.columns]
-        df_tf = df_tf[exist].dropna()
-        df_tf = df_tf.add_prefix(f'{prefixo}_')
-        return df_tf
-
+    # Processa timeframes extras
+    tf_map = {'h1': data_h1, 'h4': data_h4, 'd1': data_d1, 'w1': data_w1}
     df['time_dt'] = pd.to_datetime(df['time'])
-    base = df.copy()
-    for tf_df, prefix in [(data_h1, 'h1'), (data_h4, 'h4'), (data_d1, 'd1'), (data_w1, 'w1')]:
-        if tf_df is None or len(tf_df) < 50:
-            continue
-        tf_proc = processar_tf(tf_df, prefix)
-        if tf_proc.empty:
-            continue
-        tf_proc['time_dt'] = pd.to_datetime(tf_df['time'])
-        base = pd.merge_asof(base.sort_values('time_dt'), tf_proc.sort_values('time_dt'),
-                             on='time_dt', direction='backward', suffixes=('', f'_{prefix}'))
-        # preenche NaN das novas colunas com 0
-        novas = [c for c in base.columns if c.startswith(f'{prefix}_')]
-        base[novas] = base[novas].fillna(0)
+    
+    for prefix, df_tf in tf_map.items():
+        # Inicializa todas as colunas do timeframe com zeros
+        for col_tf in FEATURES_TF:
+            data_dict[f'{prefix}_{col_tf}'] = np.zeros(n_linhas)
+        
+        if df_tf is not None and len(df_tf) >= 50:
+            df_tf = pd.DataFrame(df_tf)
+            # CRIA time_dt IMEDIATAMENTE
+            df_tf['time_dt'] = pd.to_datetime(df_tf['time'])
+            
+            df_tf = adicionar_indicadores_classicos(df_tf)
+            fib_tf = calcular_fibonacci(df_tf)
+            if fib_tf:
+                for nome, val in fib_tf['distancias'].items():
+                    df_tf[nome] = val
+            else:
+                for nome in ['fib_0_dist','fib_236_dist','fib_382_dist','fib_500_dist',
+                             'fib_618_dist','fib_786_dist','fib_100_dist','fib_1618_dist']:
+                    df_tf[nome] = 0.0
+            df_tf["return"] = df_tf["close"].pct_change()
+            df_tf["volatility"] = df_tf["return"].rolling(10).std()
+            df_tf["ema_fast"] = df_tf["close"].ewm(span=9).mean()
+            df_tf["ema_slow"] = df_tf["close"].ewm(span=21).mean()
+            df_tf["trend"] = df_tf["ema_fast"] - df_tf["ema_slow"]
+            df_tf["trend_strength"] = abs(df_tf["trend"])
+            df_tf["momentum"] = df_tf["close"] - df_tf["close"].shift(5)
 
-    # Monta X final com todas as colunas (M15 + extras)
-    colunas_finais = features_m15.copy()
-    for prefix in ['h1', 'h4', 'd1', 'w1']:
-        colunas_finais += [c for c in base.columns if c.startswith(f'{prefix}_') and c not in colunas_finais]
-    X = base[colunas_finais].values
+            cols_tf = [c for c in FEATURES_TF if c in df_tf.columns]
+            if not cols_tf:
+                continue
+            
+            # AGORA time_dt EXISTE, podemos filtrar
+            df_tf = df_tf[['time_dt'] + cols_tf].dropna()
+            if df_tf.empty:
+                continue
+                
+            df_tf = df_tf.rename(columns={c: f'{prefix}_{c}' for c in cols_tf})
+            
+            merged = pd.merge_asof(
+                df[['time_dt']].sort_values('time_dt'),
+                df_tf.sort_values('time_dt'),
+                on='time_dt',
+                direction='backward'
+            )
+            
+            for col in [f'{prefix}_{c}' for c in FEATURES_TF]:
+                if col in merged.columns:
+                    data_dict[col] = merged[col].fillna(0.0).values
+
+    # Monta o DataFrame final de uma vez
+    final_df = pd.DataFrame(data_dict)
+
+    # Garante que todas as colunas estejam na ordem correta
+    X = final_df[FEATURES_COMPLETAS].values.astype(np.float64)
+    
+    # Remove qualquer NaN/Inf residual
+    X = np.nan_to_num(X, nan=0.0, posinf=0.0, neginf=0.0)
 
     # Target
     df["target"] = (df["close"].shift(-1) > df["close"]).astype(int)
