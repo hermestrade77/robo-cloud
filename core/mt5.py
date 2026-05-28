@@ -12,6 +12,7 @@ from ai.features import criar_features, calcular_fibonacci, FEATURES_COMPLETAS
 from ai.data import obter_dados_reais
 from ai.patterns import detectar_duplo_topo_fundo, detectar_ombro_cabeca_ombro
 from news.news_filter import analyze_news, obter_features_macro
+from news.gold_news import get_gold_news
 
 # ========== CONFIGURAÇÕES ==========
 SYMBOL = "XAUUSD.pro"
@@ -26,7 +27,7 @@ PERDA_MAX_DIA_PCT = 10.0
 TRAILING_STOP_LUCRO_PCT = 5.0
 MAX_TRADES_DIA = 0
 PAUSA_APOS_STOP = 3600
-MIN_RR_BASE = 1.2
+MIN_RR_BASE = 1.5
 ATIVAR_ORDENS_LIMITE = True
 BREAKEVEN_ATIVAR = True
 BREAKEVEN_PCT = 0.4
@@ -364,12 +365,15 @@ while True:
             p = detectar_duplo_topo_fundo(df_tf) or detectar_ombro_cabeca_ombro(df_tf)
             if p: padrao_info=p; padrao_tf=tf; break
 
-        # Notícias
+        # Notícias de alto impacto
         noticias = analyze_news()
         if noticias is None: noticias={"has_high_impact":False,"event":"NENHUMA","news_signal":"NEUTRAL"}
         evento = noticias.get("event","NENHUMA")
         alto_impacto = noticias.get("has_high_impact",False)
         sinal_news = noticias.get("news_signal","NEUTRAL")
+
+        # Notícias recentes do ouro (para o dashboard)
+        gold_news_list = get_gold_news(minutes=120)
 
         # Scores
         pts_c, pts_v = 0,0
@@ -439,15 +443,13 @@ while True:
 
         # ----- SHAP EXPLANATION -----
         try:
-            gb = modelos[1]  # GradientBoostingClassifier
+            gb = modelos[1]
             explainer = shap.TreeExplainer(gb)
             shap_vals = explainer.shap_values(feat.reshape(1, -1))
             if isinstance(shap_vals, list):
-                vals = shap_vals[1][0]  # classe positiva (subida)
+                vals = shap_vals[1][0]
             else:
                 vals = shap_vals[0]
-
-            # Use os nomes da lista completa de features (FEATURES_COMPLETAS)
             feature_names = FEATURES_COMPLETAS[:len(vals)]
             contribs = sorted(zip(feature_names, vals), key=lambda x: abs(x[1]), reverse=True)
             explicacao = "🧠 Influências SHAP:\n"
@@ -473,7 +475,8 @@ Motivo: {motivo_str}
             "signal":sinal_ia,"confidence":conf,"market":tendencia,"price":preco,
             "atr":round(atr,2),"spread":round(spread,5),"news":evento,"session":sessao,
             "analysis":analise,"reason":motivo_str,"buy_score":pts_c,"sell_score":pts_v,
-            "winrate":round(wr*100,1),"trades":trades_dia,"pnl":f"${lucro_dia:.2f}"
+            "winrate":round(wr*100,1),"trades":trades_dia,"pnl":f"${lucro_dia:.2f}",
+            "gold_news": gold_news_list
         }
         enviar_dashboard(dados_dashboard)
 

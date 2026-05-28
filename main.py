@@ -19,7 +19,8 @@ dados_compartilhados = {
     "winrate": 0,
     "trades": 0,
     "pnl": 0,
-    "timestamp": "NENHUM"
+    "timestamp": "NENHUM",
+    "gold_news": []   # lista de objetos {headline, time}
 }
 
 @app.route("/")
@@ -39,6 +40,8 @@ def home():
             .sinal { font-size:2.5rem; font-weight:bold; text-align:center; padding:10px; }
             pre { background:#0a0f1a; padding:10px; border-radius:8px; white-space:pre-wrap; }
             .buy { color:#00ff99; } .sell { color:#ff4444; } .wait { color:#ffaa00; }
+            .news-item { background:#1a2235; margin:8px 0; padding:10px; border-radius:8px; font-size:0.9rem; }
+            .news-time { color:#aaa; font-size:0.8rem; }
         </style>
     </head>
     <body>
@@ -87,6 +90,12 @@ def home():
             </div>
         </div>
         <div class="card">
+            <h2>📰 Últimas notícias do Ouro</h2>
+            <div id="gold_news_container">
+                <p>🔍 Buscando notícias...</p>
+            </div>
+        </div>
+        <div class="card">
             <h2>🤖 Análise da IA (com SHAP)</h2>
             <pre id="analysis">AGUARDANDO DADOS...</pre>
         </div>
@@ -95,8 +104,10 @@ def home():
             async function atualizarDados() {
                 try {
                     const res = await fetch('/data');
+                    if (!res.ok) throw new Error('Erro HTTP ' + res.status);
                     const data = await res.json();
 
+                    // Atualiza campos básicos
                     document.getElementById('sinal').textContent = data.signal;
                     const sinalEl = document.getElementById('sinal');
                     sinalEl.className = 'sinal ' + (data.signal === 'COMPRA' ? 'buy' : data.signal === 'VENDA' ? 'sell' : 'wait');
@@ -113,8 +124,26 @@ def home():
                     document.getElementById('pnl').textContent = data.pnl;
                     document.getElementById('timestamp').textContent = data.timestamp;
                     document.getElementById('analysis').textContent = data.analysis;
+
+                    // Atualiza lista de notícias do ouro
+                    const newsContainer = document.getElementById('gold_news_container');
+                    if (data.gold_news && data.gold_news.length > 0) {
+                        let html = '';
+                        data.gold_news.forEach(item => {
+                            html += `<div class="news-item">
+                                <div>${item.headline}</div>
+                                <div class="news-time">${item.time || ''}</div>
+                            </div>`;
+                        });
+                        newsContainer.innerHTML = html;
+                    } else {
+                        newsContainer.innerHTML = '<p>Nenhuma notícia recente encontrada.</p>';
+                    }
+
                 } catch (err) {
-                    console.error('Erro ao buscar dados:', err);
+                    console.error('Erro ao atualizar dados:', err);
+                    // Mostra erro visualmente (opcional)
+                    document.getElementById('timestamp').textContent = 'ERRO AO ATUALIZAR';
                 }
             }
 
