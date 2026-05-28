@@ -1,10 +1,10 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify
 from datetime import datetime
 
 app = Flask(__name__)
 
 # =====================================
-# MEMÓRIA GLOBAL
+# MEMÓRIA GLOBAL (valores iniciais)
 # =====================================
 shared_data = {
     "signal": "WAIT",
@@ -26,60 +26,177 @@ shared_data = {
 }
 
 # =====================================
-# HOME
+# HOME - Dashboard com refresh automático
 # =====================================
 @app.route("/")
 def home():
-    # Tenta usar o template moderno; se não existir, usa HTML embutido
-    try:
-        return render_template("index.html")
-    except:
-        # HTML de fallback (caso não tenha a pasta templates)
-        signal_color = {"BUY": "#00ff99", "SELL": "#ff4444", "WAIT": "#ffaa00"}.get(shared_data["signal"], "white")
-        return f"""
-        <html><head><meta http-equiv="refresh" content="2">
-        <title>ROBO IA XAU/USD</title></head>
-        <body style="background:#0b0f1a;color:white;font-family:Arial;padding:30px">
-            <h1>🔥 ROBO IA XAU/USD</h1><hr>
-            <h2>💰 PREÇO: {shared_data["price"]}</h2>
-            <h2>📊 MARKET: {shared_data["market"]}</h2>
-            <h2>📉 ATR: {shared_data["atr"]}</h2>
-            <h2>📡 SPREAD: {shared_data["spread"]}</h2>
-            <h2>📰 NEWS: {shared_data["news"]}</h2>
-            <h2>⏰ SESSION: {shared_data["session"]}</h2><hr>
-            <h1 style="color:{signal_color}">{shared_data["signal"]}</h1>
-            <h2>🎯 CONFIDENCE: {shared_data["confidence"]}%</h2>
-            <h2>🚀 BUY SCORE: {shared_data["buy_score"]}</h2>
-            <h2>🔻 SELL SCORE: {shared_data["sell_score"]}</h2><hr>
-            <h2>🧠 MOTIVO DA ENTRADA</h2>
-            <pre>{shared_data["reason"]}</pre><hr>
-            <h2>🤖 IA ANALISANDO</h2>
-            <pre>{shared_data["analysis"]}</pre><hr>
-            <h2>📈 PERFORMANCE</h2>
-            <h3>WINRATE: {shared_data["winrate"]}%</h3>
-            <h3>TRADES: {shared_data["trades"]}</h3>
-            <h3>PNL: {shared_data["pnl"]}</h3><hr>
-            <h3>🔄 ÚLTIMA ATUALIZAÇÃO</h3>
-            <p>{shared_data["timestamp"]}</p>
-        </body></html>
-        """
+    signal_color = {
+        "BUY": "#00ff99",
+        "SELL": "#ff4444",
+        "WAIT": "#ffaa00"
+    }.get(shared_data["signal"], "white")
+
+    # Formata o ATR para duas casas decimais (evita mostrar o np.float64 cru)
+    atr_str = f"{shared_data['atr']:.2f}" if isinstance(shared_data['atr'], (int, float)) else shared_data['atr']
+    price_str = shared_data['price']
+    spread_str = shared_data['spread']
+
+    return f"""
+    <!DOCTYPE html>
+    <html lang="pt">
+    <head>
+        <meta charset="UTF-8">
+        <meta http-equiv="refresh" content="2">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>ROBO IA XAU/USD</title>
+        <style>
+            * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+            body {{
+                background: #0b0f1a;
+                color: #e0e0e0;
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                padding: 20px;
+                max-width: 700px;
+                margin: auto;
+            }}
+            h1 {{
+                text-align: center;
+                color: #ffaa00;
+                margin-bottom: 20px;
+                font-size: 2rem;
+            }}
+            .card {{
+                background: #131a2b;
+                border-radius: 12px;
+                padding: 15px 20px;
+                margin-bottom: 15px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+            }}
+            .signal {{
+                font-size: 3rem;
+                font-weight: bold;
+                text-align: center;
+                padding: 10px;
+            }}
+            .row {{
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin: 8px 0;
+                font-size: 1.1rem;
+            }}
+            .label {{ color: #aaa; }}
+            .value {{ font-weight: bold; }}
+            pre {{
+                background: #0a0f1a;
+                padding: 10px;
+                border-radius: 8px;
+                white-space: pre-wrap;
+                font-size: 0.95rem;
+                margin-top: 10px;
+            }}
+            hr {{ border-color: #222; margin: 15px 0; }}
+            .timestamp {{
+                text-align: right;
+                font-size: 0.8rem;
+                color: #666;
+                margin-top: 10px;
+            }}
+        </style>
+    </head>
+    <body>
+        <h1>🔥 ROBO IA XAU/USD</h1>
+
+        <div class="card">
+            <div class="row">
+                <span class="label">💰 PREÇO</span>
+                <span class="value">{price_str}</span>
+            </div>
+            <div class="row">
+                <span class="label">📊 MARKET</span>
+                <span class="value">{shared_data["market"]}</span>
+            </div>
+            <div class="row">
+                <span class="label">📉 ATR</span>
+                <span class="value">{atr_str}</span>
+            </div>
+            <div class="row">
+                <span class="label">📡 SPREAD</span>
+                <span class="value">{spread_str}</span>
+            </div>
+            <div class="row">
+                <span class="label">📰 NEWS</span>
+                <span class="value">{shared_data["news"]}</span>
+            </div>
+            <div class="row">
+                <span class="label">⏰ SESSION</span>
+                <span class="value">{shared_data["session"]}</span>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="signal" style="color:{signal_color}">{shared_data["signal"]}</div>
+            <div class="row">
+                <span class="label">🎯 CONFIDENCE</span>
+                <span class="value">{shared_data["confidence"]}%</span>
+            </div>
+            <div class="row">
+                <span class="label">🚀 BUY SCORE</span>
+                <span class="value">{shared_data["buy_score"]}</span>
+            </div>
+            <div class="row">
+                <span class="label">🔻 SELL SCORE</span>
+                <span class="value">{shared_data["sell_score"]}</span>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>🧠 MOTIVO DA ENTRADA</h3>
+            <pre>{shared_data["reason"]}</pre>
+        </div>
+
+        <div class="card">
+            <h3>🤖 ANÁLISE DA IA</h3>
+            <pre>{shared_data["analysis"]}</pre>
+        </div>
+
+        <div class="card">
+            <h3>📈 PERFORMANCE</h3>
+            <div class="row">
+                <span class="label">WINRATE</span>
+                <span class="value">{shared_data["winrate"]}%</span>
+            </div>
+            <div class="row">
+                <span class="label">TRADES</span>
+                <span class="value">{shared_data["trades"]}</span>
+            </div>
+            <div class="row">
+                <span class="label">PNL</span>
+                <span class="value">{shared_data["pnl"]}</span>
+            </div>
+        </div>
+
+        <div class="timestamp">🔄 Última atualização: {shared_data["timestamp"]}</div>
+    </body>
+    </html>
+    """
 
 # =====================================
-# API para o polling do dashboard moderno
+# API para polling (caso necessário)
 # =====================================
 @app.route("/data")
 def data():
     return jsonify(shared_data)
 
 # =====================================
-# Rota adicional (evita 404 do frontend antigo)
+# Rota extra para evitar 404
 # =====================================
 @app.route("/api/analysis")
 def api_analysis():
     return jsonify(shared_data)
 
 # =====================================
-# UPDATE - recebe dados do robô
+# UPDATE - Recebe dados do robô
 # =====================================
 @app.route("/update", methods=["POST"])
 def update():
