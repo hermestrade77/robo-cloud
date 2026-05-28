@@ -50,11 +50,7 @@ def calcular_fibonacci(df, swing_janela=5):
     distancias = {}
     for nome, preco in niveis.items():
         distancias[f'fib_{nome}_dist'] = (last_close - preco) / diff
-    return {
-        'tendencia_impulso': tendencia,
-        'niveis': niveis,
-        'distancias': distancias
-    }
+    return {'tendencia_impulso': tendencia, 'niveis': niveis, 'distancias': distancias}
 
 # ============================================
 # TICK VOLUME (apenas M15)
@@ -96,7 +92,7 @@ def adicionar_indicadores_classicos(df):
     rs = avg_gain / (avg_loss + 1e-9)
     df['rsi'] = 100 - (100 / (1 + rs))
 
-    # MACD (12,26,9)
+    # MACD
     ema12 = close.ewm(span=12).mean()
     ema26 = close.ewm(span=26).mean()
     macd_line = ema12 - ema26
@@ -105,7 +101,7 @@ def adicionar_indicadores_classicos(df):
     df['macd_line'] = macd_line
     df['macd_signal'] = signal
 
-    # ADX (14)
+    # ADX
     plus_dm = high.diff().clip(lower=0)
     minus_dm = -low.diff().clip(upper=0)
     tr = pd.concat([high - low, (high - close.shift()).abs(), (low - close.shift()).abs()], axis=1).max(axis=1)
@@ -117,7 +113,7 @@ def adicionar_indicadores_classicos(df):
     df['plus_di'] = plus_di
     df['minus_di'] = minus_di
 
-    # Bandas de Bollinger (20,2)
+    # Bollinger Bands
     sma20 = close.rolling(20).mean()
     std20 = close.rolling(20).std()
     upper_band = sma20 + 2 * std20
@@ -125,38 +121,29 @@ def adicionar_indicadores_classicos(df):
     df['bb_position'] = (close - lower_band) / (upper_band - lower_band + 1e-9)
     df['bb_width'] = (upper_band - lower_band) / (sma20 + 1e-9)
 
-    # Estocástico (14,3,3)
+    # Estocástico
     low_min = low.rolling(14).min()
     high_max = high.rolling(14).max()
     stoch_k = 100 * (close - low_min) / (high_max - low_min + 1e-9)
     df['stoch_k'] = stoch_k.rolling(3).mean()
     df['stoch_d'] = df['stoch_k'].rolling(3).mean()
 
-    # Distâncias de SMAs (50,200)
+    # Distâncias SMAs
     sma50 = close.rolling(50).mean()
     sma200 = close.rolling(200).mean()
     df['dist_sma50'] = (close - sma50) / (sma50 + 1e-9) * 100
     df['dist_sma200'] = (close - sma200) / (sma200 + 1e-9) * 100
-
     return df
 
 # ============================================
-# FEATURES DE NOTÍCIAS CURTO PRAZO
+# NOTÍCIAS (curto prazo) – retorna apenas números
 # ============================================
 def obter_features_noticias():
     agora = datetime.now(timezone.utc)
     janelas_min = [15, 30, 60, 240]
     contagens = {f'news_{m}m': 0 for m in janelas_min}
-    next_event_time = None
+    next_event_time = 999
     news_direction_signal = 0
-
-    EVENT_DIRECTION = {
-        "Nonfarm Payrolls": -1,
-        "Core PCE": -1,
-        "GDP": -1,
-        "ISM Manufacturing": -1,
-        "FOMC": 0,
-    }
 
     if hasattr(mt5, 'calendar_get'):
         try:
@@ -173,48 +160,31 @@ def obter_features_noticias():
                         for m in janelas_min:
                             if diff_min <= m:
                                 contagens[f'news_{m}m'] += 1
-                        if next_event_time is None or diff_min < next_event_time:
+                        if diff_min < next_event_time:
                             next_event_time = diff_min
-                            name = getattr(ev, 'name', '')
-                            for key, dir_val in EVENT_DIRECTION.items():
-                                if key.lower() in name.lower():
-                                    news_direction_signal = dir_val
-                                    break
-                if next_event_time is not None:
-                    return {
-                        'news_15m': contagens['news_15m'],
-                        'news_30m': contagens['news_30m'],
-                        'news_60m': contagens['news_60m'],
-                        'news_240m': contagens['news_240m'],
-                        'news_next_time': next_event_time,
-                        'news_high_impact': 1,
-                        'news_direction_signal': news_direction_signal
-                    }
+                            # direção simplificada: se menciona FOMC, NFP, etc., sinal -1 (venda ouro)
+                            name = getattr(ev, 'name', '').lower()
+                            if any(k in name for k in ["nonfarm", "nfp", "cpi", "gdp", "core pce", "ism"]):
+                                news_direction_signal = -1
+                            elif "ecb" in name:
+                                news_direction_signal = 1
         except:
             pass
 
-    NEWS_SCHEDULE = [
-        (12, 30, "US Core PCE Price Index", -1),
-        (12, 30, "US GDP Annualized", -1),
-        (13, 30, "US Nonfarm Payrolls", -1),
-        (14, 0, "US ISM Manufacturing PMI", -1),
-        (18, 0, "FOMC Meeting Minutes", 0),
-    ]
-    for h, m, desc, dir_val in NEWS_SCHEDULE:
-        noticia_utc = agora.replace(hour=h, minute=m, second=0, microsecond=0)
-        if noticia_utc < agora:
-            noticia_utc += timedelta(days=1)
-        diff_min = (noticia_utc - agora).total_seconds() / 60
-        for janela in janelas_min:
-            if diff_min <= janela:
-                contagens[f'news_{janela}m'] += 1
-        if next_event_time is None or diff_min < next_event_time:
-            next_event_time = diff_min
-            news_direction_signal = dir_val
-
-    if next_event_time is None:
-        next_event_time = 999
-        news_direction_signal = 0
+    # Fallback fixo (apenas para preencher features)
+    if next_event_time == 999:
+        # Tenta uma tabela fixa simples
+        for h, m in [(12,30), (13,30), (14,0), (18,0)]:
+            noticia_utc = agora.replace(hour=h, minute=m, second=0, microsecond=0)
+            if noticia_utc < agora:
+                noticia_utc += timedelta(days=1)
+            diff_min = (noticia_utc - agora).total_seconds() / 60
+            for janela in janelas_min:
+                if diff_min <= janela:
+                    contagens[f'news_{janela}m'] += 1
+            if diff_min < next_event_time:
+                next_event_time = diff_min
+                news_direction_signal = -1  # simplificação
 
     return {
         'news_15m': contagens['news_15m'],
@@ -227,15 +197,65 @@ def obter_features_noticias():
     }
 
 # ============================================
-# FEATURES MACRO (AGORA VEM DO NEWS_FILTER)
+# MACRO (Fed, juros, eventos globais) – apenas números
 # ============================================
-from news.news_filter import obter_features_macro
+GLOBAL_EVENTS = [
+    (2026,1,28,19,0,-1), (2026,3,18,18,0,-1), (2026,5,6,18,0,-1), (2026,6,17,18,0,-1),
+    (2026,7,29,18,0,-1), (2026,9,16,18,0,-1), (2026,11,4,19,0,-1), (2026,12,16,19,0,-1),
+    (2026,1,21,13,45,1), (2026,3,11,13,45,1), (2026,4,22,13,45,1), (2026,6,10,13,45,1),
+    (2026,7,22,13,45,1), (2026,9,9,13,45,1), (2026,10,28,13,45,1), (2026,12,16,13,45,1),
+    (2026,1,9,13,30,-1), (2026,2,6,13,30,-1), (2026,3,6,13,30,-1), (2026,4,3,13,30,-1),
+    (2026,5,1,13,30,-1), (2026,6,5,13,30,-1), (2026,7,2,13,30,-1), (2026,8,7,13,30,-1),
+    (2026,9,4,13,30,-1), (2026,10,2,13,30,-1), (2026,11,6,13,30,-1), (2026,12,4,13,30,-1),
+    (2026,1,14,13,30,-1), (2026,2,11,13,30,-1), (2026,3,11,13,30,-1), (2026,4,14,12,30,-1),
+    (2026,5,13,12,30,-1), (2026,6,10,12,30,-1), (2026,7,14,12,30,-1), (2026,8,12,12,30,-1),
+    (2026,9,15,12,30,-1), (2026,10,13,12,30,-1), (2026,11,12,13,30,-1), (2026,12,11,13,30,-1),
+]
+
+def obter_features_macro():
+    agora = datetime.now(timezone.utc)
+    janelas_h = [12, 24, 72, 168]
+    contagens = {f'macro_events_{h}h': 0 for h in janelas_h}
+    buy_signals = 0
+    sell_signals = 0
+    next_days = 999
+    next_dir = 0
+
+    for ev in GLOBAL_EVENTS:
+        try:
+            ev_dt = datetime(ev[0], ev[1], ev[2], ev[3], ev[4], tzinfo=timezone.utc)
+        except:
+            continue
+        diff_h = (ev_dt - agora).total_seconds() / 3600
+        if diff_h < 0:
+            continue
+        for h in janelas_h:
+            if diff_h <= h:
+                contagens[f'macro_events_{h}h'] += 1
+        if diff_h / 24 < next_days:
+            next_days = diff_h / 24
+            next_dir = ev[5]
+        if ev[5] == 1:
+            buy_signals += 1
+        elif ev[5] == -1:
+            sell_signals += 1
+
+    return {
+        'macro_events_12h': contagens['macro_events_12h'],
+        'macro_events_24h': contagens['macro_events_24h'],
+        'macro_events_72h': contagens['macro_events_72h'],
+        'macro_events_168h': contagens['macro_events_168h'],
+        'macro_buy_signals': buy_signals,
+        'macro_sell_signals': sell_signals,
+        'macro_days_to_next_event': round(next_days, 2),
+        'macro_next_direction': next_dir
+    }
 
 # ============================================
-# FUNÇÃO PRINCIPAL CRIAR FEATURES
+# FUNÇÃO PRINCIPAL criar_features
 # ============================================
 def criar_features(data_m15, data_h1=None, data_h4=None, data_d1=None, data_w1=None, symbol="XAUUSD.pro"):
-    # --- Processa M15 ---
+    # --- M15 ---
     df = pd.DataFrame(data_m15)
     df["return"] = df["close"].pct_change()
     df["volatility"] = df["return"].rolling(10).std()
@@ -250,14 +270,13 @@ def criar_features(data_m15, data_h1=None, data_h4=None, data_d1=None, data_w1=N
         for nome, valor in fib['distancias'].items():
             df[nome] = valor
     else:
-        for nome in ['fib_0_dist', 'fib_236_dist', 'fib_382_dist', 'fib_500_dist',
-                     'fib_618_dist', 'fib_786_dist', 'fib_100_dist', 'fib_1618_dist']:
+        for nome in ['fib_0_dist','fib_236_dist','fib_382_dist','fib_500_dist',
+                     'fib_618_dist','fib_786_dist','fib_100_dist','fib_1618_dist']:
             df[nome] = 0.0
 
     df = calcular_tick_volume(df, symbol)
     df = adicionar_indicadores_classicos(df)
 
-    # Features de notícias e macro
     news_feats = obter_features_noticias()
     macro_feats = obter_features_macro()
     for k, v in {**news_feats, **macro_feats}.items():
@@ -266,93 +285,81 @@ def criar_features(data_m15, data_h1=None, data_h4=None, data_d1=None, data_w1=N
     df = df.dropna()
 
     features_m15 = [
-        "close", "return", "volatility", "trend", "trend_strength", "momentum",
-        "fib_0_dist", "fib_236_dist", "fib_382_dist", "fib_500_dist",
-        "fib_618_dist", "fib_786_dist", "fib_100_dist", "fib_1618_dist",
-        "tick_volume", "tick_volume_ratio",
-        "rsi", "macd", "adx", "plus_di", "minus_di",
-        "bb_position", "bb_width",
-        "stoch_k", "stoch_d",
-        "dist_sma50", "dist_sma200",
-        "news_15m", "news_30m", "news_60m", "news_240m",
-        "news_next_time", "news_high_impact", "news_direction_signal",
-        "macro_events_12h", "macro_events_24h", "macro_events_72h", "macro_events_168h",
-        "macro_buy_signals", "macro_sell_signals",
-        "macro_days_to_next_event", "macro_next_direction"
+        "close","return","volatility","trend","trend_strength","momentum",
+        "fib_0_dist","fib_236_dist","fib_382_dist","fib_500_dist",
+        "fib_618_dist","fib_786_dist","fib_100_dist","fib_1618_dist",
+        "tick_volume","tick_volume_ratio",
+        "rsi","macd","adx","plus_di","minus_di",
+        "bb_position","bb_width",
+        "stoch_k","stoch_d",
+        "dist_sma50","dist_sma200",
+        "news_15m","news_30m","news_60m","news_240m",
+        "news_next_time","news_high_impact","news_direction_signal",
+        "macro_events_12h","macro_events_24h","macro_events_72h","macro_events_168h",
+        "macro_buy_signals","macro_sell_signals",
+        "macro_days_to_next_event","macro_next_direction"
     ]
 
     X = df[features_m15].values
 
-    # --- Função auxiliar para mesclar timeframes superiores ---
-    def mesclar_timeframe(df_base, df_tf, prefixo):
-        if df_tf is None or len(df_tf) == 0:
-            return df_base
-        df_tf_proc = processar_timeframe(df_tf, prefixo)
-        if df_tf_proc.empty:
-            return df_base
-        df_base['time_dt'] = pd.to_datetime(df_base['time'])
-        df_tf_proc['time_dt'] = pd.to_datetime(df_tf['time'])
-        df_tf_sorted = df_tf_proc.sort_values('time_dt')
-        merged = pd.merge_asof(df_base.sort_values('time_dt'), df_tf_sorted, on='time_dt', direction='backward', suffixes=('', f'_{prefixo}'))
-        cols_tf = [c for c in merged.columns if c.startswith(prefixo)]
-        merged[cols_tf] = merged[cols_tf].fillna(0)
-        return merged
-
-    def processar_timeframe(df, prefixo):
-        if df is None or len(df) < 50:
+    # --- Multitimeframe ---
+    def processar_tf(df_tf, prefixo):
+        if df_tf is None or len(df_tf) < 50:
             return pd.DataFrame()
-        df = df.copy()
-        df = adicionar_indicadores_classicos(df)
-        fib = calcular_fibonacci(df)
-        if fib is not None:
-            for nome, valor in fib['distancias'].items():
-                df[nome] = valor
+        df_tf = pd.DataFrame(df_tf)
+        df_tf = adicionar_indicadores_classicos(df_tf)
+        fib_tf = calcular_fibonacci(df_tf)
+        if fib_tf:
+            for nome, val in fib_tf['distancias'].items():
+                df_tf[nome] = val
         else:
-            for nome in ['fib_0_dist', 'fib_236_dist', 'fib_382_dist', 'fib_500_dist',
-                         'fib_618_dist', 'fib_786_dist', 'fib_100_dist', 'fib_1618_dist']:
-                df[nome] = 0.0
-        df['return'] = df['close'].pct_change()
-        df['volatility'] = df['return'].rolling(10).std()
-        df['ema_fast'] = df['close'].ewm(span=9).mean()
-        df['ema_slow'] = df['close'].ewm(span=21).mean()
-        df['trend'] = df['ema_fast'] - df['ema_slow']
-        df['trend_strength'] = abs(df['trend'])
-        df['momentum'] = df['close'] - df['close'].shift(5)
-
-        colunas = [
-            "close", "return", "volatility", "trend", "trend_strength", "momentum",
-            "fib_0_dist", "fib_236_dist", "fib_382_dist", "fib_500_dist",
-            "fib_618_dist", "fib_786_dist", "fib_100_dist", "fib_1618_dist",
-            "rsi", "macd", "adx", "plus_di", "minus_di",
-            "bb_position", "bb_width",
-            "stoch_k", "stoch_d",
-            "dist_sma50", "dist_sma200"
+            for nome in ['fib_0_dist','fib_236_dist','fib_382_dist','fib_500_dist',
+                         'fib_618_dist','fib_786_dist','fib_100_dist','fib_1618_dist']:
+                df_tf[nome] = 0.0
+        df_tf["return"] = df_tf["close"].pct_change()
+        df_tf["volatility"] = df_tf["return"].rolling(10).std()
+        df_tf["ema_fast"] = df_tf["close"].ewm(span=9).mean()
+        df_tf["ema_slow"] = df_tf["close"].ewm(span=21).mean()
+        df_tf["trend"] = df_tf["ema_fast"] - df_tf["ema_slow"]
+        df_tf["trend_strength"] = abs(df_tf["trend"])
+        df_tf["momentum"] = df_tf["close"] - df_tf["close"].shift(5)
+        cols = [
+            "close","return","volatility","trend","trend_strength","momentum",
+            "fib_0_dist","fib_236_dist","fib_382_dist","fib_500_dist",
+            "fib_618_dist","fib_786_dist","fib_100_dist","fib_1618_dist",
+            "rsi","macd","adx","plus_di","minus_di",
+            "bb_position","bb_width",
+            "stoch_k","stoch_d",
+            "dist_sma50","dist_sma200"
         ]
-        existentes = [c for c in colunas if c in df.columns]
-        df = df[existentes].dropna()
-        df = df.add_prefix(f'{prefixo}_')
-        return df
+        exist = [c for c in cols if c in df_tf.columns]
+        df_tf = df_tf[exist].dropna()
+        df_tf = df_tf.add_prefix(f'{prefixo}_')
+        return df_tf
 
-    merged = df.copy()
-    if data_h1 is not None and len(data_h1) >= 50:
-        merged = mesclar_timeframe(merged, data_h1, 'h1')
-    if data_h4 is not None and len(data_h4) >= 50:
-        merged = mesclar_timeframe(merged, data_h4, 'h4')
-    if data_d1 is not None and len(data_d1) >= 50:
-        merged = mesclar_timeframe(merged, data_d1, 'd1')
-    if data_w1 is not None and len(data_w1) >= 30:
-        merged = mesclar_timeframe(merged, data_w1, 'w1')
+    df['time_dt'] = pd.to_datetime(df['time'])
+    base = df.copy()
+    for tf_df, prefix in [(data_h1, 'h1'), (data_h4, 'h4'), (data_d1, 'd1'), (data_w1, 'w1')]:
+        if tf_df is None or len(tf_df) < 50:
+            continue
+        tf_proc = processar_tf(tf_df, prefix)
+        if tf_proc.empty:
+            continue
+        tf_proc['time_dt'] = pd.to_datetime(tf_df['time'])
+        base = pd.merge_asof(base.sort_values('time_dt'), tf_proc.sort_values('time_dt'),
+                             on='time_dt', direction='backward', suffixes=('', f'_{prefix}'))
+        # preenche NaN das novas colunas com 0
+        novas = [c for c in base.columns if c.startswith(f'{prefix}_')]
+        base[novas] = base[novas].fillna(0)
 
-    colunas_base = features_m15
-    for prefixo in ['h1', 'h4', 'd1', 'w1']:
-        cols = [c for c in merged.columns if c.startswith(f'{prefixo}_')]
-        if cols:
-            X_extra = merged[cols].values
-            X = np.hstack([X, X_extra])
+    # Monta X final com todas as colunas (M15 + extras)
+    colunas_finais = features_m15.copy()
+    for prefix in ['h1', 'h4', 'd1', 'w1']:
+        colunas_finais += [c for c in base.columns if c.startswith(f'{prefix}_') and c not in colunas_finais]
+    X = base[colunas_finais].values
 
+    # Target
     df["target"] = (df["close"].shift(-1) > df["close"]).astype(int)
     y = df["target"].values
-    valid_idx = ~np.isnan(y)
-    X = X[valid_idx]
-    y = y[valid_idx]
-    return X, y
+    valid = ~np.isnan(y)
+    return X[valid], y[valid]
