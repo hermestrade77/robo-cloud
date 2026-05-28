@@ -1,15 +1,11 @@
-from flask import (
-    Flask,
-    render_template,
-    request,
-    jsonify
-)
+from flask import Flask, request, jsonify
+from datetime import datetime
 
 app = Flask(__name__)
 
-# ====================================
-# DADOS GLOBAIS
-# ====================================
+# =========================================
+# GLOBAL MEMORY
+# =========================================
 
 shared_data = {
 
@@ -19,66 +15,159 @@ shared_data = {
 
     "market": "NONE",
 
-    "bos": "NONE",
+    "price": 0,
 
-    "choch": "NONE",
+    "atr": 0,
 
-    "sweep": False,
+    "spread": 0,
+
+    "news": "NONE",
 
     "session": "NONE",
+
+    "analysis": "WAITING DATA",
+
+    "reason": "WAITING IA",
+
+    "buy_score": 0,
+
+    "sell_score": 0,
 
     "winrate": 0,
 
     "trades": 0,
 
-    "pnl": 0
+    "pnl": 0,
+
+    "timestamp": "NONE"
 }
 
-# ====================================
-# DASHBOARD
-# ====================================
+# =========================================
+# HOME
+# =========================================
 
 @app.route("/")
 
 def home():
 
-    return render_template(
+    signal_color = {
 
-        "index.html",
+        "BUY": "#00ff99",
 
-        signal=shared_data["signal"],
+        "SELL": "#ff4444",
 
-        confidence=round(
-            shared_data["confidence"] * 100,
-            2
-        ),
+        "WAIT": "#ffaa00"
 
-        market=shared_data["market"],
+    }.get(
 
-        bos=shared_data["bos"],
+        shared_data["signal"],
 
-        choch=shared_data["choch"],
-
-        sweep=shared_data["sweep"],
-
-        bias=shared_data["market"],
-
-        session=shared_data["session"],
-
-        news="ACTIVE",
-
-        volatility="HIGH",
-
-        winrate=shared_data["winrate"],
-
-        pnl=shared_data["pnl"],
-
-        trades=shared_data["trades"]
+        "white"
     )
 
-# ====================================
-# API UPDATE
-# ====================================
+    return f"""
+
+    <html>
+
+    <head>
+
+        <meta http-equiv="refresh" content="2">
+
+        <title>ROBO IA XAU/USD</title>
+
+    </head>
+
+    <body style="background:#0b0f1a;color:white;font-family:Arial;padding:30px">
+
+        <h1>🔥 ROBO IA XAU/USD</h1>
+
+        <hr>
+
+        <h2>💰 PRICE: {shared_data["price"]}</h2>
+
+        <h2>📊 MARKET: {shared_data["market"]}</h2>
+
+        <h2>📉 ATR: {shared_data["atr"]}</h2>
+
+        <h2>📡 SPREAD: {shared_data["spread"]}</h2>
+
+        <h2>📰 NEWS: {shared_data["news"]}</h2>
+
+        <h2>⏰ SESSION: {shared_data["session"]}</h2>
+
+        <hr>
+
+        <h1 style="color:{signal_color}">
+
+            {shared_data["signal"]}
+
+        </h1>
+
+        <h2>
+
+            🎯 CONFIDENCE:
+            {shared_data["confidence"]}%
+
+        </h2>
+
+        <h2>
+
+            🚀 BUY SCORE:
+            {shared_data["buy_score"]}
+
+        </h2>
+
+        <h2>
+
+            🔻 SELL SCORE:
+            {shared_data["sell_score"]}
+
+        </h2>
+
+        <hr>
+
+        <h2>🧠 ENTRY REASON</h2>
+
+        <pre>
+
+{shared_data["reason"]}
+
+        </pre>
+
+        <hr>
+
+        <h2>🤖 AI ANALYSIS</h2>
+
+        <pre>
+
+{shared_data["analysis"]}
+
+        </pre>
+
+        <hr>
+
+        <h2>📈 PERFORMANCE</h2>
+
+        <h3>WINRATE: {shared_data["winrate"]}%</h3>
+
+        <h3>TRADES: {shared_data["trades"]}</h3>
+
+        <h3>PNL: {shared_data["pnl"]}</h3>
+
+        <hr>
+
+        <h3>🔄 LAST UPDATE</h3>
+
+        <p>{shared_data["timestamp"]}</p>
+
+    </body>
+
+    </html>
+    """
+
+# =========================================
+# UPDATE API
+# =========================================
 
 @app.route("/update", methods=["POST"])
 
@@ -86,16 +175,49 @@ def update():
 
     global shared_data
 
-    shared_data = request.json
+    try:
 
-    return jsonify({
+        data = request.json
 
-        "status": "ok"
-    })
+        print("\n================================")
+        print("📨 DADOS RECEBIDOS")
+        print(data)
 
-# ====================================
+        shared_data.update(data)
+
+        shared_data["timestamp"] = str(
+            datetime.now()
+        )
+
+        return jsonify({
+
+            "status": "success",
+
+            "data": shared_data
+        })
+
+    except Exception as e:
+
+        return jsonify({
+
+            "status": "error",
+
+            "message": str(e)
+        })
+
+# =========================================
+# API
+# =========================================
+
+@app.route("/api")
+
+def api():
+
+    return jsonify(shared_data)
+
+# =========================================
 # START
-# ====================================
+# =========================================
 
 if __name__ == "__main__":
 
