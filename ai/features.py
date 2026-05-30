@@ -2,10 +2,12 @@ import pandas as pd
 import numpy as np
 import MetaTrader5 as mt5
 from datetime import datetime, timedelta, timezone
+import time
+
 from news.gold_news import get_gold_news
 
 # ============================================
-# DETECÇÃO DE SWINGS E FIBONACCI (mantido)
+# DETECÇÃO DE SWINGS E FIBONACCI
 # ============================================
 def detectar_swings(df, janela=5):
     highs = df['high'].values
@@ -250,28 +252,26 @@ def obter_features_macro():
     }
 
 # ============================================
-# NOVO: FEATURES DE NOTÍCIAS DO OURO (SENTIMENTO)
+# NOVO: FEATURES DE NOTÍCIAS DO OURO COM FINBERT
 # ============================================
 def obter_features_gold_news():
-    headlines = get_gold_news(minutes=120)   # última 2 horas
+    headlines = get_gold_news(minutes=120)
     num = len(headlines)
-    bullish_words = ['alta', 'bull', 'sobe', 'ganha', 'rise', 'up', 'record', 'high', 'forte', 'rally', 'positive', 'compra', 'bullion']
-    bearish_words = ['baixa', 'bear', 'cai', 'perde', 'fall', 'down', 'low', 'weak', 'negative', 'decline', 'sell-off', 'venda', 'perda']
-    bullish_score = 0
-    bearish_score = 0
+    positive_score = 0.0
+    negative_score = 0.0
     for item in headlines:
-        headline = item['headline'].lower()
-        for w in bullish_words:
-            if w in headline:
-                bullish_score += 1
-        for w in bearish_words:
-            if w in headline:
-                bearish_score += 1
-    net_sentiment = bullish_score - bearish_score
+        sent = item.get('sentiment', {})
+        label = sent.get('label', 'neutral')
+        score = sent.get('score', 0.0)
+        if label == 'positive':
+            positive_score += score
+        elif label == 'negative':
+            negative_score += score
+    net_sentiment = (positive_score - negative_score) / (num + 1e-9)
     return {
         'gold_news_count': num,
-        'gold_news_bullish': bullish_score,
-        'gold_news_bearish': bearish_score,
+        'gold_news_positive': positive_score,
+        'gold_news_negative': negative_score,
         'gold_news_sentiment': net_sentiment
     }
 
@@ -292,8 +292,8 @@ FEATURES_BASE_M15 = [
     "macro_events_12h","macro_events_24h","macro_events_72h","macro_events_168h",
     "macro_buy_signals","macro_sell_signals",
     "macro_days_to_next_event","macro_next_direction",
-    # Novas features de notícias do ouro
-    "gold_news_count", "gold_news_bullish", "gold_news_bearish", "gold_news_sentiment"
+    # Novas features de sentimento (FinBERT)
+    "gold_news_count", "gold_news_positive", "gold_news_negative", "gold_news_sentiment"
 ]
 
 FEATURES_TF = [
@@ -308,14 +308,13 @@ FEATURES_TF = [
 
 PREFIXOS_TF = ['h1', 'h4', 'd1', 'w1']
 
-# Constrói a lista completa de features
 FEATURES_COMPLETAS = FEATURES_BASE_M15.copy()
 for prefix in PREFIXOS_TF:
     for col in FEATURES_TF:
         FEATURES_COMPLETAS.append(f'{prefix}_{col}')
 
 # ============================================
-# FUNÇÃO PRINCIPAL criar_features (atualizada)
+# FUNÇÃO PRINCIPAL criar_features
 # ============================================
 def criar_features(data_m15, data_h1=None, data_h4=None, data_d1=None, data_w1=None, symbol="XAUUSD.pro"):
     df = pd.DataFrame(data_m15)
@@ -339,7 +338,6 @@ def criar_features(data_m15, data_h1=None, data_h4=None, data_d1=None, data_w1=N
     df = calcular_tick_volume(df, symbol)
     df = adicionar_indicadores_classicos(df)
 
-    # Adiciona features de notícias, macro e agora gold_news
     news_feats = obter_features_noticias()
     macro_feats = obter_features_macro()
     gold_news_feats = obter_features_gold_news()
@@ -349,12 +347,10 @@ def criar_features(data_m15, data_h1=None, data_h4=None, data_d1=None, data_w1=N
     df = df.dropna()
     n_linhas = len(df)
 
-    # Dicionário para montar DataFrame final
     data_dict = {}
     for col in FEATURES_BASE_M15:
         data_dict[col] = df[col].values if col in df.columns else np.zeros(n_linhas)
 
-    # Processa timeframes extras
     tf_map = {'h1': data_h1, 'h4': data_h4, 'd1': data_d1, 'w1': data_w1}
     df['time_dt'] = pd.to_datetime(df['time'])
 

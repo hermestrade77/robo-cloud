@@ -243,7 +243,7 @@ def gerenciar_posicoes(conf_ia, atr_atual):
         pct_tp = lucro_pontos/tp_dist if tp_dist>0 else 0
         if BREAKEVEN_ATIVAR and pct_tp>=BREAKEVEN_PCT and sl_atual!=entrada:
             print(f"⚖️ Breakeven pos #{pos.ticket}")
-            mt5.PositionModify(pos.ticket, sl=entrada, tp=pos.tp)
+            mt5.position_modify(pos.ticket, sl=entrada, tp=pos.tp)
         if pct_tp>=BREAKEVEN_PCT:
             base = atr_atual*TRAILING_STOP_DIST_BASE
             if (direc==1 and conf_ia>0.6) or (direc==-1 and conf_ia<0.4): fator=0.7
@@ -254,12 +254,12 @@ def gerenciar_posicoes(conf_ia, atr_atual):
                 novo_sl = preco_atual - ts_dist
                 if novo_sl>sl_atual and novo_sl>entrada:
                     print(f"📈 Trailing IA → SL {novo_sl:.2f}")
-                    mt5.PositionModify(pos.ticket, sl=novo_sl, tp=pos.tp)
+                    mt5.position_modify(pos.ticket, sl=novo_sl, tp=pos.tp)
             else:
                 novo_sl = preco_atual + ts_dist
                 if novo_sl<sl_atual and novo_sl<entrada:
                     print(f"📉 Trailing IA → SL {novo_sl:.2f}")
-                    mt5.PositionModify(pos.ticket, sl=novo_sl, tp=pos.tp)
+                    mt5.position_modify(pos.ticket, sl=novo_sl, tp=pos.tp)
 
 def verificar_trades_fechados():
     global X_hist, y_hist, novos_exemplos, modelos, trades_abertos, scaler
@@ -297,7 +297,7 @@ def prever_com_modelo(features):
     else: sinal="WAIT"
     return {"signal":sinal,"probability_up":p,"probability_down":1-p}
 
-# ========== LOOP PRINCIPAL (SLEEP 10s) ==========
+# ========== LOOP PRINCIPAL ==========
 while True:
     try:
         print("\n🤖 ROBO IA XAU/USD (FULL)")
@@ -492,7 +492,7 @@ Motivo: {motivo_str}
             if not pode: print("❌", msg)
             elif lote==0: print("❌ Lote zerado")
             else: print("⚠️ POSIÇÃO ABERTA")
-        time.sleep(10)   # <--- AGORA 10 SEGUNDOS
+        time.sleep(10)
     except Exception as e:
         print("❌ ERRO LOOP:", e)
         time.sleep(10)
